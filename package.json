@@ -1,0 +1,27 @@
+{
+    "name": "predict-battle",
+    "version": "1.0.0",
+    "description": "منصة تفاعلية لإجراء توقعات مع الأصدقاء",
+    "main": "index.js",
+    "scripts": {
+      "start": "node backend/server.js",
+      "server": "nodemon backend/server.js",
+      "client": "npm start --prefix frontend",
+      "dev": "concurrently \"npm run server\" \"npm run client\"",
+      "build": "npm install --prefix frontend && npm run build --prefix frontend",
+      "heroku-postbuild": "NPM_CONFIG_PRODUCTION=false npm install --prefix frontend && npm run build --prefix frontend"
+    },
+    "keywords": [
+      "predictions",
+      "game",
+      "react",
+      "node",
+      "mongodb"
+    ],
+    "author": "",
+    "license": "MIT",
+    "dependencies": {
+      "concurrently": "^7.6.0",
+      "nodemon": "^2.0.20"
+    }
+  }
