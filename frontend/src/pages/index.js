@@ -1,189 +1,321 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import Layout from '../components/Layout';
-import { FaSignInAlt, FaUserPlus, FaBrain } from 'react-icons/fa';
-import { useAuth } from '../context/AuthContext';
+import Layout from '../../components/Layout';
+import { useAuth } from '../../context/AuthContext';
+import api from '../../services/api';
+import {
+  FaUsers,
+  FaCalendarAlt,
+  FaGamepad,
+  FaPlusCircle,
+  FaSearch,
+  FaArrowRight,
+  FaSignOutAlt
+} from 'react-icons/fa';
 
-export default function Home() {
-  const [showAuthCard, setShowAuthCard] = useState(true);
-  const [showLoginForm, setShowLoginForm] = useState(false);
-  const [showRegisterForm, setShowRegisterForm] = useState(false);
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const { login, register, error, setError } = useAuth();
+export default function Sessions() {
+  const [activeTab, setActiveTab] = useState('join-tab');
+  const [gameCode, setGameCode] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [userSessions, setUserSessions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [question, setQuestion] = useState('');
+  const [maxPlayers, setMaxPlayers] = useState(5);
+  const [secretCode, setSecretCode] = useState('');
+  
+  const { isAuthenticated, logout } = useAuth();
   const router = useRouter();
 
-  // التحقق مما إذا كان المستخدم قد قام بتسجيل الدخول
-  const { isAuthenticated } = useAuth();
-  if (typeof window !== 'undefined' && isAuthenticated()) {
-    router.push('/sessions');
-    return null;
-  }
-
-  const handleLoginClick = () => {
-    setShowAuthCard(false);
-    setShowLoginForm(true);
-    setShowRegisterForm(false);
+  // دالة لتسجيل الخروج
+  const handleLogout = () => {
+    logout();
+    router.push('/');
   };
 
-  const handleRegisterClick = () => {
-    setShowAuthCard(false);
-    setShowLoginForm(false);
-    setShowRegisterForm(true);
+  // التحقق من تسجيل الدخول
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !isAuthenticated()) {
+      router.push('/');
+    }
+  }, [isAuthenticated, router]);
+
+  // جلب جلسات المستخدم
+  useEffect(() => {
+    const fetchUserSessions = async () => {
+      try {
+        setLoading(true);
+        const response = await api.get('/sessions/user');
+        setUserSessions(response.data);
+        setLoading(false);
+      } catch (_) {
+        setError('فشل في تحميل الجلسات');
+        setLoading(false);
+      }
+    };
+
+    if (isAuthenticated()) {
+      fetchUserSessions();
+    }
+  }, [isAuthenticated]);
+
+  // تغيير التبويب النشط
+  const handleTabChange = (tabId) => {
+    setActiveTab(tabId);
   };
 
-  const handleBackClick = () => {
-    setShowAuthCard(true);
-    setShowLoginForm(false);
-    setShowRegisterForm(false);
+  // الانضمام إلى جلسة
+  const handleJoinSession = async (e) => {
+    e.preventDefault();
+    if (!gameCode.trim()) {
+      setError('الرجاء إدخال كود اللعبة');
+      return;
+    }
+
+    try {
+      await api.post(`/sessions/join/${gameCode}`);
+      router.push(`/sessions/${gameCode}`);
+    } catch (_) {
+      setError('فشل في الانضمام إلى الجلسة');
+    }
+  };
+
+  // إنشاء جلسة جديدة
+  const handleCreateSession = async (e) => {
+    e.preventDefault();
+    if (!question.trim()) {
+      setError('الرجاء إدخال سؤال التحدي');
+      return;
+    }
+    if (secretCode !== '021') {
+      setError('الرمز السري غير صحيح');
+      return;
+    }
+
+    try {
+      const response = await api.post('/sessions', {
+        question,
+        maxPlayers: parseInt(maxPlayers),
+        secretCode
+      });
+      
+      router.push(`/sessions/${response.data.code}`);
+    } catch (_) {
+      setError('فشل في إنشاء الجلسة');
+    }
+  };
+
+  // فتح نموذج إنشاء جلسة جديدة
+  const toggleCreateForm = () => {
+    setShowCreateForm(!showCreateForm);
     setError(null);
   };
 
-  const handleLoginSubmit = async (e) => {
-    e.preventDefault();
-    if (!username.trim() || !password.trim()) {
-      setError('الرجاء إدخال اسم المستخدم وكلمة المرور');
-      return;
-    }
-    await login(username, password);
+  // تصفية الجلسات حسب مصطلح البحث
+  const filteredSessions = userSessions.filter(session =>
+    session.question.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // تنسيق التاريخ
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('ar-SA', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
   };
 
-  const handleRegisterSubmit = async (e) => {
-    e.preventDefault();
-    if (!username.trim() || !password.trim()) {
-      setError('الرجاء إدخال اسم المستخدم وكلمة المرور');
-      return;
-    }
-    if (password.length < 6) {
-      setError('يجب أن تكون كلمة المرور 6 أحرف على الأقل');
-      return;
-    }
-    await register(username, password);
-  };
+  if (!isAuthenticated()) {
+    return null;
+  }
 
   return (
-    <Layout title="PredictBattle - الصفحة الرئيسية">
-      {/* بطاقة تسجيل الدخول/التسجيل */}
-      {showAuthCard && (
-        <div className="card fade-in">
-          <div className="card-header">
-            <h1>مرحباً بك في PredictBattle</h1>
-            <p className="subtitle">سجل الدخول أو أنشئ حساب جديد للاستمرار</p>
+    <Layout title="PredictBattle - الجلسات">
+      <div className="card">
+        <div className="card-header">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h1>انضم إلى جلسة توقعات</h1>
+            <button 
+              onClick={handleLogout}
+              className="logout-button"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: 'transparent',
+                border: 'none',
+                color: 'white',
+                fontSize: '14px',
+                cursor: 'pointer',
+                padding: '8px 12px',
+                borderRadius: '4px',
+                transition: 'background 0.3s'
+              }}
+              onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+              onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+            >
+              <FaSignOutAlt />
+              <span>تسجيل الخروج</span>
+            </button>
           </div>
-          <div className="card-body">
-            <div className="welcome-icon">
-              <FaBrain />
+          <p className="subtitle">ادخل كود لعبة موجود أو قم بإنشاء لعبتك الخاصة</p>
+          
+          {/* نظام التبويبات */}
+          <div className="tabs-container">
+            <div
+              className={`tab ${activeTab === 'join-tab' ? 'active' : ''}`}
+              onClick={() => handleTabChange('join-tab')}
+            >
+              انضمام للعبة
             </div>
-            <p className="welcome-text">شارك توقعاتك وتحدى الآخرين في لعبة تفاعلية ممتعة</p>
-            
-            <button onClick={handleLoginClick} className="btn btn-primary">
-              <FaSignInAlt /> تسجيل الدخول
-            </button>
-            
-            <div className="separator">
-              <span>أو</span>
+            <div
+              className={`tab ${activeTab === 'my-sessions-tab' ? 'active' : ''}`}
+              onClick={() => handleTabChange('my-sessions-tab')}
+            >
+              جلساتي
             </div>
-            
-            <button onClick={handleRegisterClick} className="btn btn-secondary">
-              <FaUserPlus /> إنشاء حساب جديد
-            </button>
+            <div className={`tab-indicator ${activeTab === 'my-sessions-tab' ? 'second' : ''}`}></div>
           </div>
         </div>
-      )}
-
-      {/* نموذج تسجيل الدخول */}
-      {showLoginForm && (
-        <div className="card fade-in">
-          <div className="card-header">
-            <h1>تسجيل الدخول</h1>
-            <p className="subtitle">أدخل بيانات حسابك للاستمرار</p>
-          </div>
-          <div className="card-body">
-            {error && <div className="alert alert-error">{error}</div>}
-            <form onSubmit={handleLoginSubmit}>
-              <div className="form-group">
-                <label htmlFor="username">اسم المستخدم</label>
+        <div className="card-body">
+          {error && <div className="alert alert-error">{error}</div>}
+          
+          {/* محتوى تبويب الانضمام */}
+          {activeTab === 'join-tab' && (
+            <div className="tab-content active" id="join-tab">
+              {!showCreateForm ? (
+                <>
+                  <form onSubmit={handleJoinSession}>
+                    <div className="form-group">
+                      <label htmlFor="gameId">كود اللعبة</label>
+                      <div className="input-wrapper">
+                        <FaGamepad className="input-icon" />
+                        <input
+                          type="text"
+                          id="gameId"
+                          value={gameCode}
+                          onChange={(e) => setGameCode(e.target.value)}
+                          placeholder="أدخل كود اللعبة المكون من 6 أحرف"
+                        />
+                      </div>
+                    </div>
+                    <button type="submit" className="btn btn-primary">
+                      <FaUsers /> انضم إلى اللعبة
+                    </button>
+                  </form>
+                  
+                  <div className="separator">
+                    <span>أو</span>
+                  </div>
+                  
+                  <button onClick={toggleCreateForm} className="btn btn-secondary">
+                    <FaPlusCircle /> إنشاء لعبة جديدة
+                  </button>
+                </>
+              ) : (
+                <>
+                  <form onSubmit={handleCreateSession}>
+                    <div className="form-group">
+                      <label htmlFor="question">سؤال التحدي</label>
+                      <div className="input-wrapper">
+                        <input
+                          type="text"
+                          id="question"
+                          value={question}
+                          onChange={(e) => setQuestion(e.target.value)}
+                          placeholder="مثال: ما هي أكبر ثلاث تقنيات ستغير العالم في السنوات الخمس القادمة؟"
+                        />
+                      </div>
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor="maxPlayers">عدد المشاركين</label>
+                      <div className="input-wrapper">
+                        <FaUsers className="input-icon" />
+                        <input
+                          type="number"
+                          id="maxPlayers"
+                          value={maxPlayers}
+                          onChange={(e) => setMaxPlayers(e.target.value)}
+                          min="2"
+                          max="20"
+                        />
+                      </div>
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor="secretCode">الرمز السري</label>
+                      <div className="input-wrapper">
+                        <input
+                          type="password"
+                          id="secretCode"
+                          value={secretCode}
+                          onChange={(e) => setSecretCode(e.target.value)}
+                          placeholder="أدخل الرمز السري للسماح بإنشاء جلسة"
+                        />
+                      </div>
+                    </div>
+                    <button type="submit" className="btn btn-primary">
+                      <FaPlusCircle /> ابدأ الجلسة
+                    </button>
+                  </form>
+                  
+                  <div className="back-to-auth" onClick={toggleCreateForm}>
+                    <FaArrowRight /> العودة
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+          
+          {/* محتوى تبويب جلساتي */}
+          {activeTab === 'my-sessions-tab' && (
+            <div className="tab-content active" id="my-sessions-tab">
+              <div className="search-bar">
                 <div className="input-wrapper">
-                  <FaUserPlus className="input-icon" />
+                  <FaSearch className="input-icon" />
                   <input
                     type="text"
-                    id="username"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder="أدخل اسم المستخدم"
+                    placeholder="ابحث في جلساتك..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
                   />
                 </div>
               </div>
-              <div className="form-group">
-                <label htmlFor="password">كلمة المرور</label>
-                <div className="input-wrapper">
-                  <FaSignInAlt className="input-icon" />
-                  <input
-                    type="password"
-                    id="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="أدخل كلمة المرور"
-                  />
-                </div>
+              
+              <div className="sessions-list">
+                {loading ? (
+                  <div className="no-sessions">جاري التحميل...</div>
+                ) : filteredSessions.length > 0 ? (
+                  filteredSessions.map((session) => (
+                    <div
+                      key={session._id}
+                      className="session-card"
+                      onClick={() => router.push(`/sessions/${session.code}`)}
+                    >
+                      <div className="session-title">{session.question}</div>
+                      <div className="session-meta">
+                        <div className="session-date">
+                          <FaCalendarAlt />
+                          <span>{formatDate(session.createdAt)}</span>
+                        </div>
+                        <div className="session-players">
+                          <FaUsers />
+                          <span>
+                            {session.participants.length}/{session.maxPlayers} لاعبين
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="no-sessions">لا توجد جلسات متاحة</div>
+                )}
               </div>
-              <button type="submit" className="btn btn-primary">
-                <FaSignInAlt /> تسجيل الدخول
-              </button>
-            </form>
-            <div className="back-to-auth" onClick={handleBackClick}>
-              العودة
             </div>
-          </div>
+          )}
         </div>
-      )}
-
-      {/* نموذج التسجيل */}
-      {showRegisterForm && (
-        <div className="card fade-in">
-          <div className="card-header">
-            <h1>إنشاء حساب جديد</h1>
-            <p className="subtitle">أنشئ حسابك للمشاركة في جلسات التوقعات</p>
-          </div>
-          <div className="card-body">
-            {error && <div className="alert alert-error">{error}</div>}
-            <form onSubmit={handleRegisterSubmit}>
-              <div className="form-group">
-                <label htmlFor="reg-username">اسم المستخدم</label>
-                <div className="input-wrapper">
-                  <FaUserPlus className="input-icon" />
-                  <input
-                    type="text"
-                    id="reg-username"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder="أدخل اسم المستخدم"
-                  />
-                </div>
-              </div>
-              <div className="form-group">
-                <label htmlFor="reg-password">كلمة المرور</label>
-                <div className="input-wrapper">
-                  <FaSignInAlt className="input-icon" />
-                  <input
-                    type="password"
-                    id="reg-password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="أدخل كلمة المرور (6 أحرف على الأقل)"
-                  />
-                </div>
-              </div>
-              <button type="submit" className="btn btn-primary">
-                <FaUserPlus /> إنشاء حساب
-              </button>
-            </form>
-            <div className="back-to-auth" onClick={handleBackClick}>
-              العودة
-            </div>
-          </div>
-        </div>
-      )}
+      </div>
     </Layout>
   );
 }

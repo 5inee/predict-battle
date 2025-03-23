@@ -1,16 +1,9 @@
 import Head from 'next/head';
-import { useRouter } from 'next/router';
-import { FaBolt, FaSignOutAlt } from 'react-icons/fa';
-import { useAuth } from '../context/AuthContext';
+// Eliminar esta línea: import { useRouter } from 'next/router';
+import { FaBolt } from 'react-icons/fa';
 
 export default function Layout({ children, title = 'PredictBattle' }) {
-  const router = useRouter();
-  const { isAuthenticated, logout } = useAuth();
-
-  const handleLogout = () => {
-    logout();
-    router.push('/');
-  };
+  // Eliminar esta línea: const router = useRouter();
 
   return (
     <>
@@ -28,30 +21,6 @@ export default function Layout({ children, title = 'PredictBattle' }) {
             </div>
             <div className="logo-text">PredictBattle</div>
           </div>
-          
-          {/* زر تسجيل الخروج يظهر فقط إذا كان المستخدم مسجل الدخول */}
-          {isAuthenticated && (
-            <button 
-              onClick={handleLogout}
-              className="logout-button"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                background: 'transparent',
-                border: 'none',
-                color: 'var(--primary)',
-                fontSize: '14px',
-                cursor: 'pointer',
-                position: 'absolute',
-                left: '20px',
-                top: '30px'
-              }}
-            >
-              <FaSignOutAlt />
-              <span>تسجيل الخروج</span>
-            </button>
-          )}
         </header>
         <main>{children}</main>
       </div>
