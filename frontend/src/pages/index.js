@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '../components/Layout';
-import { FaSignInAlt, FaUserPlus, FaBrain } from 'react-icons/fa';
+import { FaSignInAlt, FaUserPlus, FaBrain, FaLock, FaUser } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
 
 export default function Home() {
@@ -10,12 +10,14 @@ export default function Home() {
   const [showRegisterForm, setShowRegisterForm] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  // إضافة متغير حالة جديد لتأكيد كلمة المرور
+  const [confirmPassword, setConfirmPassword] = useState('');
   const { login, register, error, setError } = useAuth();
   const router = useRouter();
 
   // التحقق مما إذا كان المستخدم قد قام بتسجيل الدخول
-  const { isAuthenticated } = useAuth();
-  if (typeof window !== 'undefined' && isAuthenticated()) {
+  const { user } = useAuth();
+  if (typeof window !== 'undefined' && user) {
     router.push('/sessions');
     return null;
   }
@@ -56,6 +58,11 @@ export default function Home() {
     }
     if (password.length < 6) {
       setError('يجب أن تكون كلمة المرور 6 أحرف على الأقل');
+      return;
+    }
+    // التحقق من تطابق كلمة المرور مع تأكيدها
+    if (password !== confirmPassword) {
+      setError('كلمة المرور وتأكيدها غير متطابقين');
       return;
     }
     await register(username, password);
@@ -104,7 +111,7 @@ export default function Home() {
               <div className="form-group">
                 <label htmlFor="username">اسم المستخدم</label>
                 <div className="input-wrapper">
-                  <FaUserPlus className="input-icon" />
+                  <FaUser className="input-icon" />
                   <input
                     type="text"
                     id="username"
@@ -117,7 +124,7 @@ export default function Home() {
               <div className="form-group">
                 <label htmlFor="password">كلمة المرور</label>
                 <div className="input-wrapper">
-                  <FaSignInAlt className="input-icon" />
+                  <FaLock className="input-icon" />
                   <input
                     type="password"
                     id="password"
@@ -151,7 +158,7 @@ export default function Home() {
               <div className="form-group">
                 <label htmlFor="reg-username">اسم المستخدم</label>
                 <div className="input-wrapper">
-                  <FaUserPlus className="input-icon" />
+                  <FaUser className="input-icon" />
                   <input
                     type="text"
                     id="reg-username"
@@ -164,13 +171,27 @@ export default function Home() {
               <div className="form-group">
                 <label htmlFor="reg-password">كلمة المرور</label>
                 <div className="input-wrapper">
-                  <FaSignInAlt className="input-icon" />
+                  <FaLock className="input-icon" />
                   <input
                     type="password"
                     id="reg-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="أدخل كلمة المرور (6 أحرف على الأقل)"
+                  />
+                </div>
+              </div>
+              {/* إضافة حقل تأكيد كلمة المرور */}
+              <div className="form-group">
+                <label htmlFor="reg-confirm-password">تأكيد كلمة المرور</label>
+                <div className="input-wrapper">
+                  <FaLock className="input-icon" />
+                  <input
+                    type="password"
+                    id="reg-confirm-password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="أعد إدخال كلمة المرور للتأكيد"
                   />
                 </div>
               </div>
