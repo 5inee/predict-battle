@@ -204,68 +204,60 @@ export default function SessionDetail() {
           
           {/* عرض التوقعات */}
           {/* عرض التوقعات فقط إذا قام المستخدم بإرسال توقعه */}
-{predictions.length > 0 && (
+{hasSubmitted && predictions.length > 0 && (
   <div className="predictions-container" style={{ marginTop: '30px' }}>
     <h2 style={{ fontSize: '20px', fontWeight: '600', marginBottom: '15px', color: 'var(--dark)' }}>
       التوقعات
     </h2>
     
-    {hasSubmitted ? (
-      <div className="predictions-list">
-        {predictions.map((p) => (
-          <div
-            key={p._id}
-            className="prediction-card"
-            style={{
-              backgroundColor: 'white',
-              borderRadius: 'var(--border-radius-md)',
-              padding: '20px',
-              marginBottom: '15px',
-              boxShadow: 'var(--shadow-md)',
-              borderRight: p.user._id === user.id ? '4px solid var(--primary)' : '4px solid var(--secondary)'
-            }}
-          >
-            {/* محتوى بطاقة التوقع - لا تغيير */}
-            <div className="prediction-header" style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
-              <div
-                className="user-avatar"
-                style={{
-                  width: '40px',
-                  height: '40px',
-                  borderRadius: '50%',
-                  backgroundColor: getRandomColor(p.user._id),
-                  color: 'white',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontWeight: 'bold',
-                  marginLeft: '10px'
-                }}
-              >
-                {getInitial(p.user.username)}
-              </div>
-              <div className="user-info">
-                <div className="username" style={{ fontWeight: '600', color: 'var(--dark)' }}>
-                  {p.user.username} {p.user._id === user.id ? '(أنت)' : ''}
-                </div>
-                <div className="timestamp" style={{ fontSize: '12px', color: 'var(--medium)' }}>
-                  <FaClock style={{ marginLeft: '5px', display: 'inline-block' }} />
-                  {formatDateTime(p.submittedAt)}
-                </div>
-              </div>
+    <div className="predictions-list">
+      {predictions.map((p) => (
+        <div
+          key={p._id}
+          className="prediction-card"
+          style={{
+            backgroundColor: 'white',
+            borderRadius: 'var(--border-radius-md)',
+            padding: '20px',
+            marginBottom: '15px',
+            boxShadow: 'var(--shadow-md)',
+            borderRight: p.user._id === user.id ? '4px solid var(--primary)' : '4px solid var(--secondary)'
+          }}
+        >
+          <div className="prediction-header" style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
+            <div
+              className="user-avatar"
+              style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '50%',
+                backgroundColor: getRandomColor(p.user._id),
+                color: 'white',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 'bold',
+                marginLeft: '10px'
+              }}
+            >
+              {getInitial(p.user.username)}
             </div>
-            <div className="prediction-content" style={{ whiteSpace: 'pre-wrap', lineHeight: '1.6', color: 'var(--dark)' }}>
-              {p.content}
+            <div className="user-info">
+              <div className="username" style={{ fontWeight: '600', color: 'var(--dark)' }}>
+                {p.user.username} {p.user._id === user.id ? '(أنت)' : ''}
+              </div>
+              <div className="timestamp" style={{ fontSize: '12px', color: 'var(--medium)' }}>
+                <FaClock style={{ marginLeft: '5px', display: 'inline-block' }} />
+                {formatDateTime(p.submittedAt)}
+              </div>
             </div>
           </div>
-        ))}
-      </div>
-    ) : (
-      <div className="alert alert-warning" style={{ textAlign: 'center' }}>
-        <FaExclamationTriangle style={{ marginLeft: '5px' }} />
-        يجب عليك إرسال توقعك أولاً لمشاهدة توقعات المشاركين الآخرين
-      </div>
-    )}
+          <div className="prediction-content" style={{ whiteSpace: 'pre-wrap', lineHeight: '1.6', color: 'var(--dark)' }}>
+            {p.content}
+          </div>
+        </div>
+      ))}
+    </div>
   </div>
 )}
         </div>
