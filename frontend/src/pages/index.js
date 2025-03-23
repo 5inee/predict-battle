@@ -36,7 +36,7 @@ export default function Sessions() {
 
   // التحقق من تسجيل الدخول
   useEffect(() => {
-    if (typeof window !== 'undefined' && !isAuthenticated()) {
+    if (typeof window !== 'undefined' && !isAuthenticated) {
       router.push('/');
     }
   }, [isAuthenticated, router]);
@@ -55,7 +55,7 @@ export default function Sessions() {
       }
     };
 
-    if (isAuthenticated()) {
+    if (isAuthenticated) {
       fetchUserSessions();
     }
   }, [isAuthenticated]);
@@ -127,7 +127,7 @@ export default function Sessions() {
     });
   };
 
-  if (!isAuthenticated()) {
+  if (!isAuthenticated) {
     return null;
   }
 
@@ -137,7 +137,7 @@ export default function Sessions() {
         <div className="card-header">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h1>انضم إلى جلسة توقعات</h1>
-            {isAuthenticated() && (
+            {isAuthenticated && (
               <button 
                 onClick={handleLogout}
                 className="logout-button"
