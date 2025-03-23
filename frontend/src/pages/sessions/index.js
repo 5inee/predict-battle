@@ -17,7 +17,6 @@ import {
   FaKey,
   FaQuestion,
   FaChevronRight,
-  FaHashtag,
   FaInfoCircle,
   FaClipboard,
   FaHourglassHalf,
@@ -51,6 +50,8 @@ export default function Sessions() {
   // جلب جلسات المستخدم
   useEffect(() => {
     const fetchUserSessions = async () => {
+      if (!user) return; // تأكد من وجود المستخدم قبل جلب الجلسات
+      
       try {
         setLoading(true);
         const response = await api.get('/sessions/user');
@@ -69,6 +70,8 @@ export default function Sessions() {
 
   // تسجيل الخروج
   const handleLogout = () => {
+    if (typeof window === 'undefined') return; // تأكد من وجود window
+    
     logout();
     router.push('/');
   };
@@ -129,11 +132,18 @@ export default function Sessions() {
       return;
     }
 
+    // تحويل maxPlayers إلى رقم صحيح في حالة كونه نص
+    const maxPlayerValue = parseInt(maxPlayers, 10);
+    if (isNaN(maxPlayerValue) || maxPlayerValue < 2 || maxPlayerValue > 20) {
+      setError('عدد اللاعبين يجب أن يكون بين 2 و 20');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const response = await api.post('/sessions', {
         question,
-        maxPlayers: parseInt(maxPlayers),
+        maxPlayers: maxPlayerValue,
         secretCode
       });
       
@@ -152,6 +162,8 @@ export default function Sessions() {
 
   // نسخ كود الجلسة
   const copyToClipboard = (code) => {
+    if (typeof navigator === 'undefined') return; // تأكد من وجود navigator
+    
     navigator.clipboard.writeText(code);
     setCopySuccess(true);
     setTimeout(() => setCopySuccess(false), 2000);
@@ -166,11 +178,11 @@ export default function Sessions() {
   // تنسيق التاريخ
   const formatDate = (dateString) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('ar-SA', {
+    return new Intl.DateTimeFormat('ar-SA', {
       year: 'numeric',
       month: 'long',
       day: 'numeric'
-    });
+    }).format(date);
   };
 
   // حالة الجلسة
@@ -185,7 +197,7 @@ export default function Sessions() {
   };
 
   // التحقق من وجود user قبل العرض
-  if (!user) {
+  if (typeof window !== 'undefined' && !user) {
     return null;
   }
 
@@ -247,7 +259,7 @@ export default function Sessions() {
                     <div className="form-group">
                       <label htmlFor="gameId">كود الجلسة</label>
                       <div className="input-wrapper">
-                        <FaHashtag className="input-icon" />
+                        <FaGamepad className="input-icon" />
                         <input
                           type="text"
                           id="gameId"
@@ -305,7 +317,12 @@ export default function Sessions() {
                           type="number"
                           id="maxPlayers"
                           value={maxPlayers}
-                          onChange={(e) => setMaxPlayers(Math.min(20, Math.max(2, e.target.value)))}
+                          onChange={(e) => {
+                            const value = parseInt(e.target.value, 10);
+                            if (!isNaN(value)) {
+                              setMaxPlayers(Math.min(20, Math.max(2, value)));
+                            }
+                          }}
                           min="2"
                           max="20"
                           disabled={isSubmitting}
@@ -335,7 +352,7 @@ export default function Sessions() {
                         gap: '5px'
                       }}>
                         <FaInfoCircle />
-                        <span>الرمز السري مطلوب لإنشاء جلسات جديدة، تواصل مع المسؤول للحصول عليه.</span>
+                        <span>الرمز السري هو 021 (مطلوب لإنشاء جلسات جديدة)</span>
                       </div>
                     </div>
                     
