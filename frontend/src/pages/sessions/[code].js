@@ -66,10 +66,18 @@ export default function SessionDetail() {
 
   // إرسال التوقع
 // في ملف frontend/src/pages/sessions/[code].js
+// وظيفة محسّنة لمعالجة إرسال التوقع في الواجهة الأمامية
 const handleSubmitPrediction = async (e) => {
   e.preventDefault();
-  if (!prediction.trim()) {
+  
+  // التحقق من صحة المدخلات
+  if (!prediction || !prediction.trim()) {
     setError('الرجاء إدخال توقعك');
+    return;
+  }
+  
+  if (!session || !session._id) {
+    setError('بيانات الجلسة غير متوفرة، يرجى تحديث الصفحة والمحاولة مرة أخرى');
     return;
   }
 
@@ -77,17 +85,68 @@ const handleSubmitPrediction = async (e) => {
     setSubmitting(true);
     setError(null); // مسح أي خطأ سابق
     
-    const response = await api.post('/predictions', {
-      sessionId: session._id,
-      content: prediction
-    });
+    // استخدام محاولات متعددة (retry) في حالة الاتصال غير المستقر
+    let retries = 2;
+    let success = false;
+    let response;
     
-    setPredictions(response.data.predictions);
+    while (retries >= 0 && !success) {
+      try {
+        response = await api.post('/predictions', {
+          sessionId: session._id,
+          content: prediction.trim()
+        });
+        success = true;
+      } catch (retryErr) {
+        console.error(`Error attempt ${2 - retries}/2:`, retryErr);
+        retries--;
+        
+        // إذا كان الخطأ "لقد قدمت توقعًا بالفعل"، نعتبره نجاحًا
+        if (retryErr.response?.data?.message === 'You have already submitted a prediction') {
+          response = retryErr.response;
+          success = true;
+          break;
+        }
+        
+        // إذا لم يبق محاولات، نرمي الخطأ للمعالجة اللاحقة
+        if (retries < 0) throw retryErr;
+        
+        // انتظار قبل المحاولة التالية
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+    
+    // معالجة الاستجابة الناجحة
+    if (response.data.predictions) {
+      setPredictions(response.data.predictions);
+    }
+    
     setHasSubmitted(true);
+    setPrediction(''); // مسح مربع الإدخال بعد الإرسال الناجح
     setSubmitting(false);
   } catch (err) {
     console.error('Error submitting prediction:', err);
-    setError(err.response?.data?.message || 'فشل في إرسال التوقع، يرجى المحاولة مرة أخرى.');
+    
+    // معالجة مختلف أنواع الخطأ
+    if (err.response) {
+      // الخادم استجاب برمز حالة خارج نطاق 2xx
+      if (err.response.status === 403) {
+        setError('غير مصرّح لك بإرسال توقع في هذه الجلسة');
+      } else if (err.response.status === 404) {
+        setError('الجلسة غير موجودة أو تم حذفها');
+      } else if (err.response.status === 400) {
+        setError(err.response.data.message || 'بيانات غير صحيحة، يرجى التحقق من المدخلات');
+      } else {
+        setError(err.response.data.message || 'حدث خطأ في الخادم، يرجى المحاولة مرة أخرى لاحقًا');
+      }
+    } else if (err.request) {
+      // تم إنشاء الطلب ولكن لم يتم استلام استجابة
+      setError('لا يمكن الاتصال بالخادم، يرجى التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى');
+    } else {
+      // حدث خطأ أثناء إعداد الطلب
+      setError('حدث خطأ أثناء إرسال التوقع، يرجى المحاولة مرة أخرى');
+    }
+    
     setSubmitting(false);
   }
 };
