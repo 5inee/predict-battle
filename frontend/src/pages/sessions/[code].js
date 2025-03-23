@@ -65,28 +65,32 @@ export default function SessionDetail() {
   }, [code, initialized, isAuthenticated, user]);
 
   // إرسال التوقع
-  const handleSubmitPrediction = async (e) => {
-    e.preventDefault();
-    if (!prediction.trim()) {
-      setError('الرجاء إدخال توقعك');
-      return;
-    }
+// في ملف frontend/src/pages/sessions/[code].js
+const handleSubmitPrediction = async (e) => {
+  e.preventDefault();
+  if (!prediction.trim()) {
+    setError('الرجاء إدخال توقعك');
+    return;
+  }
 
-    try {
-      setSubmitting(true);
-      const response = await api.post('/predictions', {
-        sessionId: session._id,
-        content: prediction
-      });
-      
-      setPredictions(response.data.predictions);
-      setHasSubmitted(true);
-      setSubmitting(false);
-    } catch (err) {
-      setError(err.response?.data?.message || 'فشل في إرسال التوقع، يرجى المحاولة مرة أخرى.');
-      setSubmitting(false);
-    }
-  };
+  try {
+    setSubmitting(true);
+    setError(null); // مسح أي خطأ سابق
+    
+    const response = await api.post('/predictions', {
+      sessionId: session._id,
+      content: prediction
+    });
+    
+    setPredictions(response.data.predictions);
+    setHasSubmitted(true);
+    setSubmitting(false);
+  } catch (err) {
+    console.error('Error submitting prediction:', err);
+    setError(err.response?.data?.message || 'فشل في إرسال التوقع، يرجى المحاولة مرة أخرى.');
+    setSubmitting(false);
+  }
+};
 
   // تنسيق التاريخ والوقت
   const formatDateTime = (dateString) => {
