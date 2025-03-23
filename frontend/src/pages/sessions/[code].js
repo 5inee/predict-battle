@@ -47,7 +47,7 @@ export default function SessionDetail() {
         }
         
         setLoading(false);
-      } catch (error) {
+      } catch (_) {
         setError('فشل في تحميل تفاصيل الجلسة');
         setLoading(false);
       }
@@ -76,7 +76,7 @@ export default function SessionDetail() {
       setPredictions(response.data.predictions);
       setHasSubmitted(true);
       setSubmitting(false);
-    } catch (error) {
+    } catch (_) {
       setError(error.response?.data?.message || 'فشل في إرسال التوقع');
       setSubmitting(false);
     }

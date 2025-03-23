@@ -42,7 +42,7 @@ export default function Sessions() {
         const response = await api.get('/sessions/user');
         setUserSessions(response.data);
         setLoading(false);
-      } catch (error) {
+      } catch (_) {
         setError('فشل في تحميل الجلسات');
         setLoading(false);
       }
@@ -69,7 +69,7 @@ export default function Sessions() {
     try {
       await api.post(`/sessions/join/${gameCode}`);
       router.push(`/sessions/${gameCode}`);
-    } catch (error) {
+    } catch (_) {
       setError(error.response?.data?.message || 'فشل في الانضمام إلى الجلسة');
     }
   };
@@ -94,7 +94,7 @@ export default function Sessions() {
       });
       
       router.push(`/sessions/${response.data.code}`);
-    } catch (error) {
+    } catch (_) {
       setError(error.response?.data?.message || 'فشل في إنشاء الجلسة');
     }
   };
