@@ -7,7 +7,6 @@ import {
   FaUsers,
   FaCalendarAlt,
   FaGamepad,
-  FaUser,
   FaPlusCircle,
   FaSearch,
   FaArrowRight
@@ -25,7 +24,7 @@ export default function Sessions() {
   const [maxPlayers, setMaxPlayers] = useState(5);
   const [secretCode, setSecretCode] = useState('');
   
-  const { user, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
   const router = useRouter();
 
   // التحقق من تسجيل الدخول
@@ -43,7 +42,7 @@ export default function Sessions() {
         const response = await api.get('/sessions/user');
         setUserSessions(response.data);
         setLoading(false);
-      } catch (err) {
+      } catch (error) {
         setError('فشل في تحميل الجلسات');
         setLoading(false);
       }
@@ -70,8 +69,8 @@ export default function Sessions() {
     try {
       await api.post(`/sessions/join/${gameCode}`);
       router.push(`/sessions/${gameCode}`);
-    } catch (err) {
-      setError(err.response?.data?.message || 'فشل في الانضمام إلى الجلسة');
+    } catch (error) {
+      setError(error.response?.data?.message || 'فشل في الانضمام إلى الجلسة');
     }
   };
 
@@ -95,8 +94,8 @@ export default function Sessions() {
       });
       
       router.push(`/sessions/${response.data.code}`);
-    } catch (err) {
-      setError(err.response?.data?.message || 'فشل في إنشاء الجلسة');
+    } catch (error) {
+      setError(error.response?.data?.message || 'فشل في إنشاء الجلسة');
     }
   };
 

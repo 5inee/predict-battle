@@ -1,9 +1,9 @@
 import Head from 'next/head';
-import { useRouter } from 'next/router';
+// Eliminar esta línea: import { useRouter } from 'next/router';
 import { FaBolt } from 'react-icons/fa';
 
 export default function Layout({ children, title = 'PredictBattle' }) {
-  const router = useRouter();
+  // Eliminar esta línea: const router = useRouter();
 
   return (
     <>

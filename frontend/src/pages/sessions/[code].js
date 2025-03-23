@@ -4,9 +4,7 @@ import Layout from '../../components/Layout';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import {
-  FaUsers,
   FaClock,
-  FaUserCircle,
   FaPaperPlane,
   FaExclamationTriangle,
   FaCheck
@@ -49,7 +47,7 @@ export default function SessionDetail() {
         }
         
         setLoading(false);
-      } catch (err) {
+      } catch (error) {
         setError('فشل في تحميل تفاصيل الجلسة');
         setLoading(false);
       }
@@ -78,8 +76,8 @@ export default function SessionDetail() {
       setPredictions(response.data.predictions);
       setHasSubmitted(true);
       setSubmitting(false);
-    } catch (err) {
-      setError(err.response?.data?.message || 'فشل في إرسال التوقع');
+    } catch (error) {
+      setError(error.response?.data?.message || 'فشل في إرسال التوقع');
       setSubmitting(false);
     }
   };
