@@ -9,7 +9,8 @@ import {
   FaGamepad,
   FaPlusCircle,
   FaSearch,
-  FaArrowRight
+  FaArrowRight,
+  FaSignOutAlt
 } from 'react-icons/fa';
 
 export default function Sessions() {
@@ -24,15 +25,22 @@ export default function Sessions() {
   const [maxPlayers, setMaxPlayers] = useState(5);
   const [secretCode, setSecretCode] = useState('');
   
-  const { isAuthenticated } = useAuth();
+  // استخدام user مباشرة بدلاً من isAuthenticated
+  const { user, logout } = useAuth();
   const router = useRouter();
+
+  // دالة لتسجيل الخروج
+  const handleLogout = () => {
+    logout();
+    router.push('/');
+  };
 
   // التحقق من تسجيل الدخول
   useEffect(() => {
-    if (typeof window !== 'undefined' && !isAuthenticated()) {
+    if (typeof window !== 'undefined' && !user) {
       router.push('/');
     }
-  }, [isAuthenticated, router]);
+  }, [user, router]);
 
   // جلب جلسات المستخدم
   useEffect(() => {
@@ -48,10 +56,10 @@ export default function Sessions() {
       }
     };
 
-    if (isAuthenticated()) {
+    if (user) {
       fetchUserSessions();
     }
-  }, [isAuthenticated]);
+  }, [user]);
 
   // تغيير التبويب النشط
   const handleTabChange = (tabId) => {
@@ -70,7 +78,7 @@ export default function Sessions() {
       await api.post(`/sessions/join/${gameCode}`);
       router.push(`/sessions/${gameCode}`);
     } catch (_) {
-      setError(error.response?.data?.message || 'فشل في الانضمام إلى الجلسة');
+      setError('فشل في الانضمام إلى الجلسة');
     }
   };
 
@@ -95,7 +103,7 @@ export default function Sessions() {
       
       router.push(`/sessions/${response.data.code}`);
     } catch (_) {
-      setError(error.response?.data?.message || 'فشل في إنشاء الجلسة');
+      setError('فشل في إنشاء الجلسة');
     }
   };
 
@@ -120,7 +128,8 @@ export default function Sessions() {
     });
   };
 
-  if (!isAuthenticated()) {
+  // التحقق من وجود user قبل العرض
+  if (!user) {
     return null;
   }
 
@@ -128,7 +137,34 @@ export default function Sessions() {
     <Layout title="PredictBattle - الجلسات">
       <div className="card">
         <div className="card-header">
-          <h1>انضم إلى جلسة توقعات</h1>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h1>انضم إلى جلسة توقعات</h1>
+            {/* استخدام user للتحقق من حالة تسجيل الدخول */}
+            {user && (
+              <button 
+                onClick={handleLogout}
+                className="logout-button"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'white',
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  padding: '8px 12px',
+                  borderRadius: '4px',
+                  transition: 'background 0.3s'
+                }}
+                onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+              >
+                <FaSignOutAlt />
+                <span>تسجيل الخروج</span>
+              </button>
+            )}
+          </div>
           <p className="subtitle">ادخل كود لعبة موجود أو قم بإنشاء لعبتك الخاصة</p>
           
           {/* نظام التبويبات */}
