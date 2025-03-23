@@ -137,28 +137,30 @@ export default function Sessions() {
         <div className="card-header">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h1>انضم إلى جلسة توقعات</h1>
-            <button 
-              onClick={handleLogout}
-              className="logout-button"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                background: 'transparent',
-                border: 'none',
-                color: 'white',
-                fontSize: '14px',
-                cursor: 'pointer',
-                padding: '8px 12px',
-                borderRadius: '4px',
-                transition: 'background 0.3s'
-              }}
-              onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-              onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
-            >
-              <FaSignOutAlt />
-              <span>تسجيل الخروج</span>
-            </button>
+            {isAuthenticated() && (
+              <button 
+                onClick={handleLogout}
+                className="logout-button"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'white',
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  padding: '8px 12px',
+                  borderRadius: '4px',
+                  transition: 'background 0.3s'
+                }}
+                onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+              >
+                <FaSignOutAlt />
+                <span>تسجيل الخروج</span>
+              </button>
+            )}
           </div>
           <p className="subtitle">ادخل كود لعبة موجود أو قم بإنشاء لعبتك الخاصة</p>
           
