@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '../components/Layout';
-import { FaSignInAlt, FaUserPlus, FaBrain, FaLock, FaUser } from 'react-icons/fa';
+import { FaSignInAlt, FaUserPlus, FaBrain, FaLock, FaUser, FaArrowRight } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
 
 export default function Home() {
@@ -10,35 +10,39 @@ export default function Home() {
   const [showRegisterForm, setShowRegisterForm] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  // إضافة متغير حالة جديد لتأكيد كلمة المرور
   const [confirmPassword, setConfirmPassword] = useState('');
-  const { login, register, error, setError } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { login, register, error, setError, clearError } = useAuth();
   const router = useRouter();
 
   // التحقق مما إذا كان المستخدم قد قام بتسجيل الدخول
-  const { user } = useAuth();
-  if (typeof window !== 'undefined' && user) {
-    router.push('/sessions');
-    return null;
-  }
+  const { user, initialized } = useAuth();
+  
+  useEffect(() => {
+    if (initialized && user) {
+      router.push('/sessions');
+    }
+  }, [initialized, user, router]);
 
   const handleLoginClick = () => {
+    clearError();
     setShowAuthCard(false);
     setShowLoginForm(true);
     setShowRegisterForm(false);
   };
 
   const handleRegisterClick = () => {
+    clearError();
     setShowAuthCard(false);
     setShowLoginForm(false);
     setShowRegisterForm(true);
   };
 
   const handleBackClick = () => {
+    clearError();
     setShowAuthCard(true);
     setShowLoginForm(false);
     setShowRegisterForm(false);
-    setError(null);
   };
 
   const handleLoginSubmit = async (e) => {
@@ -47,7 +51,10 @@ export default function Home() {
       setError('الرجاء إدخال اسم المستخدم وكلمة المرور');
       return;
     }
+    
+    setIsSubmitting(true);
     await login(username, password);
+    setIsSubmitting(false);
   };
 
   const handleRegisterSubmit = async (e) => {
@@ -60,28 +67,62 @@ export default function Home() {
       setError('يجب أن تكون كلمة المرور 6 أحرف على الأقل');
       return;
     }
-    // التحقق من تطابق كلمة المرور مع تأكيدها
     if (password !== confirmPassword) {
       setError('كلمة المرور وتأكيدها غير متطابقين');
       return;
     }
+    
+    setIsSubmitting(true);
     await register(username, password);
+    setIsSubmitting(false);
   };
 
+  // إذا لم يتم تهيئة السياق بعد، نعرض شاشة التحميل
+  if (!initialized) {
+    return (
+      <Layout title="PredictBattle - جار التحميل">
+        <div className="card">
+          <div className="card-body">
+            <div className="loading-text">
+              <div className="loading"></div>
+              <span>جارِ تحميل التطبيق...</span>
+            </div>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  // إذا كان المستخدم مسجل الدخول بالفعل، نعرض شاشة التحميل أثناء الانتقال
+  if (user) {
+    return (
+      <Layout title="PredictBattle - جار التحميل">
+        <div className="card">
+          <div className="card-body">
+            <div className="loading-text">
+              <div className="loading"></div>
+              <span>جارِ الانتقال إلى الجلسات...</span>
+            </div>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
   return (
-    <Layout title="PredictBattle - الصفحة الرئيسية">
+    <Layout title="PredictBattle - منصة التوقعات التفاعلية">
       {/* بطاقة تسجيل الدخول/التسجيل */}
       {showAuthCard && (
         <div className="card fade-in">
           <div className="card-header">
             <h1>مرحباً بك في PredictBattle</h1>
-            <p className="subtitle">سجل الدخول أو أنشئ حساب جديد للاستمرار</p>
+            <p className="subtitle">منصة التوقعات التفاعلية - شارك توقعاتك وتحدى الآخرين</p>
           </div>
           <div className="card-body">
             <div className="welcome-icon">
               <FaBrain />
             </div>
-            <p className="welcome-text">شارك توقعاتك وتحدى الآخرين في لعبة تفاعلية ممتعة</p>
+            <p className="welcome-text">هل تستطيع التنبؤ بالمستقبل؟ شارك توقعاتك وتنافس مع الآخرين في لعبة تفاعلية ممتعة!</p>
             
             <button onClick={handleLoginClick} className="btn btn-primary">
               <FaSignInAlt /> تسجيل الدخول
@@ -103,10 +144,10 @@ export default function Home() {
         <div className="card fade-in">
           <div className="card-header">
             <h1>تسجيل الدخول</h1>
-            <p className="subtitle">أدخل بيانات حسابك للاستمرار</p>
+            <p className="subtitle">أدخل بيانات حسابك للوصول إلى جلسات التوقعات</p>
           </div>
           <div className="card-body">
-            {error && <div className="alert alert-error">{error}</div>}
+            {error && <div className="alert alert-error"><FaLock /> {error}</div>}
             <form onSubmit={handleLoginSubmit}>
               <div className="form-group">
                 <label htmlFor="username">اسم المستخدم</label>
@@ -118,6 +159,7 @@ export default function Home() {
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder="أدخل اسم المستخدم"
+                    disabled={isSubmitting}
                   />
                 </div>
               </div>
@@ -131,15 +173,25 @@ export default function Home() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="أدخل كلمة المرور"
+                    disabled={isSubmitting}
                   />
                 </div>
               </div>
-              <button type="submit" className="btn btn-primary">
-                <FaSignInAlt /> تسجيل الدخول
+              <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    <div className="loading"></div>
+                    <span>جار تسجيل الدخول...</span>
+                  </>
+                ) : (
+                  <>
+                    <FaSignInAlt /> تسجيل الدخول
+                  </>
+                )}
               </button>
             </form>
             <div className="back-to-auth" onClick={handleBackClick}>
-              العودة
+              <FaArrowRight /> العودة
             </div>
           </div>
         </div>
@@ -153,7 +205,7 @@ export default function Home() {
             <p className="subtitle">أنشئ حسابك للمشاركة في جلسات التوقعات</p>
           </div>
           <div className="card-body">
-            {error && <div className="alert alert-error">{error}</div>}
+            {error && <div className="alert alert-error"><FaLock /> {error}</div>}
             <form onSubmit={handleRegisterSubmit}>
               <div className="form-group">
                 <label htmlFor="reg-username">اسم المستخدم</label>
@@ -165,6 +217,7 @@ export default function Home() {
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder="أدخل اسم المستخدم"
+                    disabled={isSubmitting}
                   />
                 </div>
               </div>
@@ -178,10 +231,10 @@ export default function Home() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="أدخل كلمة المرور (6 أحرف على الأقل)"
+                    disabled={isSubmitting}
                   />
                 </div>
               </div>
-              {/* إضافة حقل تأكيد كلمة المرور */}
               <div className="form-group">
                 <label htmlFor="reg-confirm-password">تأكيد كلمة المرور</label>
                 <div className="input-wrapper">
@@ -192,15 +245,25 @@ export default function Home() {
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="أعد إدخال كلمة المرور للتأكيد"
+                    disabled={isSubmitting}
                   />
                 </div>
               </div>
-              <button type="submit" className="btn btn-primary">
-                <FaUserPlus /> إنشاء حساب
+              <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    <div className="loading"></div>
+                    <span>جار إنشاء الحساب...</span>
+                  </>
+                ) : (
+                  <>
+                    <FaUserPlus /> إنشاء حساب
+                  </>
+                )}
               </button>
             </form>
             <div className="back-to-auth" onClick={handleBackClick}>
-              العودة
+              <FaArrowRight /> العودة
             </div>
           </div>
         </div>

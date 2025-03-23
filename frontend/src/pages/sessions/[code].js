@@ -7,7 +7,11 @@ import {
   FaClock,
   FaPaperPlane,
   FaExclamationTriangle,
-  FaCheck
+  FaCheck,
+  FaUsers,
+  FaArrowRight,
+  FaCode,
+  FaQuestion
 } from 'react-icons/fa';
 
 export default function SessionDetail() {
@@ -19,21 +23,23 @@ export default function SessionDetail() {
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, initialized } = useAuth();
   const router = useRouter();
   const { code } = router.query;
 
   // التحقق من تسجيل الدخول
   useEffect(() => {
-    if (typeof window !== 'undefined' && !isAuthenticated()) {
+    if (initialized && !isAuthenticated()) {
       router.push('/');
     }
-  }, [isAuthenticated, router]);
+  }, [initialized, isAuthenticated, router]);
 
   // جلب تفاصيل الجلسة والتوقعات
   useEffect(() => {
     const fetchSessionDetails = async () => {
-      if (!code) return;
+      if (!code || !initialized || !isAuthenticated()) {
+        return;
+      }
       
       try {
         setLoading(true);
@@ -47,16 +53,16 @@ export default function SessionDetail() {
         }
         
         setLoading(false);
-      } catch (_) {
-        setError('فشل في تحميل تفاصيل الجلسة');
+      } catch (err) {
+        setError('فشل في تحميل تفاصيل الجلسة، يرجى المحاولة مرة أخرى.');
         setLoading(false);
       }
     };
 
-    if (isAuthenticated()) {
+    if (initialized && isAuthenticated()) {
       fetchSessionDetails();
     }
-  }, [code, isAuthenticated, user]);
+  }, [code, initialized, isAuthenticated, user]);
 
   // إرسال التوقع
   const handleSubmitPrediction = async (e) => {
@@ -76,8 +82,8 @@ export default function SessionDetail() {
       setPredictions(response.data.predictions);
       setHasSubmitted(true);
       setSubmitting(false);
-    } catch (_) {
-      setError(error.response?.data?.message || 'فشل في إرسال التوقع');
+    } catch (err) {
+      setError(err.response?.data?.message || 'فشل في إرسال التوقع، يرجى المحاولة مرة أخرى.');
       setSubmitting(false);
     }
   };
@@ -102,9 +108,8 @@ export default function SessionDetail() {
   // توليد لون عشوائي ثابت لكل مستخدم
   const getRandomColor = (userId) => {
     const colors = [
-      '#4285F4', '#EA4335', '#FBBC05', '#34A853',
-      '#5E60CE', '#5390D9', '#6930C3', '#7400B8',
-      '#FF7600', '#FF5400', '#FF1053', '#6A0572'
+      '#4F46E5', '#9333EA', '#0EA5E9', '#10B981', '#F59E0B', 
+      '#6366F1', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316'
     ];
     
     // استخدام رقم المستخدم لتحديد اللون
@@ -112,12 +117,47 @@ export default function SessionDetail() {
     return colors[index];
   };
 
-  if (!isAuthenticated() || loading) {
+  if (!initialized) {
     return (
-      <Layout title="PredictBattle - جاري التحميل">
+      <Layout title="PredictBattle - جار التحميل">
         <div className="card">
           <div className="card-body">
-            <div className="no-sessions">جاري التحميل...</div>
+            <div className="loading-text">
+              <div className="loading"></div>
+              <span>جارِ تحميل البيانات...</span>
+            </div>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (initialized && !isAuthenticated()) {
+    return (
+      <Layout title="PredictBattle - غير مصرح">
+        <div className="card">
+          <div className="card-body">
+            <div className="alert alert-error">
+              <FaExclamationTriangle /> يجب تسجيل الدخول للوصول إلى هذه الصفحة
+            </div>
+            <button onClick={() => router.push('/')} className="btn btn-primary">
+              <FaArrowRight /> العودة إلى صفحة تسجيل الدخول
+            </button>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (loading) {
+    return (
+      <Layout title="PredictBattle - جار التحميل">
+        <div className="card">
+          <div className="card-body">
+            <div className="loading-text">
+              <div className="loading"></div>
+              <span>جارِ تحميل تفاصيل الجلسة...</span>
+            </div>
           </div>
         </div>
       </Layout>
@@ -129,9 +169,11 @@ export default function SessionDetail() {
       <Layout title="PredictBattle - خطأ">
         <div className="card">
           <div className="card-body">
-            <div className="alert alert-error">{error}</div>
+            <div className="alert alert-error">
+              <FaExclamationTriangle /> {error}
+            </div>
             <button onClick={() => router.push('/sessions')} className="btn btn-primary">
-              العودة إلى الجلسات
+              <FaArrowRight /> العودة إلى الجلسات
             </button>
           </div>
         </div>
@@ -144,9 +186,11 @@ export default function SessionDetail() {
       <Layout title="PredictBattle - غير موجود">
         <div className="card">
           <div className="card-body">
-            <div className="alert alert-error">الجلسة غير موجودة</div>
+            <div className="alert alert-error">
+              <FaExclamationTriangle /> الجلسة غير موجودة أو تم حذفها
+            </div>
             <button onClick={() => router.push('/sessions')} className="btn btn-primary">
-              العودة إلى الجلسات
+              <FaArrowRight /> العودة إلى الجلسات
             </button>
           </div>
         </div>
@@ -158,10 +202,44 @@ export default function SessionDetail() {
     <Layout title={`PredictBattle - ${session.question}`}>
       <div className="card">
         <div className="card-header">
-          <h1>{session.question}</h1>
-          <p className="subtitle">
-            كود الجلسة: {session.code} | المشاركون: {session.participants.length}/{session.maxPlayers}
-          </p>
+          <div style={{ 
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            marginBottom: '10px'
+          }}>
+            <FaQuestion size={20} />
+            <h1>{session.question}</h1>
+          </div>
+          <div style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '12px',
+            marginTop: '8px'
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: 'rgba(255, 255, 255, 0.2)',
+              padding: '6px 12px',
+              borderRadius: '8px',
+              fontSize: '14px'
+            }}>
+              <FaCode /> كود الجلسة: {session.code}
+            </div>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: 'rgba(255, 255, 255, 0.2)',
+              padding: '6px 12px',
+              borderRadius: '8px',
+              fontSize: '14px'
+            }}>
+              <FaUsers /> المشاركون: {session.participants.length}/{session.maxPlayers}
+            </div>
+          </div>
         </div>
         <div className="card-body">
           {/* حالة الجلسة */}
@@ -179,87 +257,103 @@ export default function SessionDetail() {
           
           {/* نموذج إرسال التوقع */}
           {!hasSubmitted && (
-            <form onSubmit={handleSubmitPrediction}>
-              <div className="form-group">
-                <label htmlFor="prediction">توقعك</label>
-                <textarea
-                  id="prediction"
-                  value={prediction}
-                  onChange={(e) => setPrediction(e.target.value)}
-                  placeholder="اكتب توقعك هنا..."
-                  rows="4"
-                  className="w-full p-4 border-2 border-gray-200 rounded-md"
-                  style={{ width: '100%', padding: '14px', borderRadius: 'var(--border-radius-md)', border: '2px solid #e1e4e8' }}
-                />
-              </div>
-              <button
-                type="submit"
-                className="btn btn-primary"
-                disabled={submitting}
-              >
-                <FaPaperPlane /> إرسال التوقع
-              </button>
-            </form>
+            <div style={{ marginTop: '20px' }}>
+              <h2 style={{ fontSize: '20px', fontWeight: '600', marginBottom: '15px', color: 'var(--dark)' }}>
+                أضف توقعك
+              </h2>
+              
+              {error && <div className="alert alert-error"><FaExclamationTriangle /> {error}</div>}
+              
+              <form onSubmit={handleSubmitPrediction}>
+                <div className="form-group">
+                  <label htmlFor="prediction">ما هو توقعك؟</label>
+                  <textarea
+                    id="prediction"
+                    value={prediction}
+                    onChange={(e) => setPrediction(e.target.value)}
+                    placeholder="اكتب توقعك هنا... كن محددًا قدر الإمكان"
+                    rows="4"
+                    style={{ 
+                      width: '100%', 
+                      padding: '14px', 
+                      borderRadius: 'var(--border-radius-md)', 
+                      border: '2px solid rgba(0, 0, 0, 0.08)',
+                      minHeight: '120px',
+                      fontFamily: 'inherit'
+                    }}
+                    disabled={submitting}
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={submitting}
+                >
+                  {submitting ? (
+                    <>
+                      <div className="loading"></div>
+                      <span>جار إرسال التوقع...</span>
+                    </>
+                  ) : (
+                    <>
+                      <FaPaperPlane /> إرسال التوقع
+                    </>
+                  )}
+                </button>
+              </form>
+            </div>
           )}
           
           {/* عرض التوقعات */}
-          {/* عرض التوقعات فقط إذا قام المستخدم بإرسال توقعه */}
-{hasSubmitted && predictions.length > 0 && (
-  <div className="predictions-container" style={{ marginTop: '30px' }}>
-    <h2 style={{ fontSize: '20px', fontWeight: '600', marginBottom: '15px', color: 'var(--dark)' }}>
-      التوقعات
-    </h2>
-    
-    <div className="predictions-list">
-      {predictions.map((p) => (
-        <div
-          key={p._id}
-          className="prediction-card"
-          style={{
-            backgroundColor: 'white',
-            borderRadius: 'var(--border-radius-md)',
-            padding: '20px',
-            marginBottom: '15px',
-            boxShadow: 'var(--shadow-md)',
-            borderRight: p.user._id === user.id ? '4px solid var(--primary)' : '4px solid var(--secondary)'
-          }}
-        >
-          <div className="prediction-header" style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
-            <div
-              className="user-avatar"
-              style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: '50%',
-                backgroundColor: getRandomColor(p.user._id),
-                color: 'white',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: 'bold',
-                marginLeft: '10px'
-              }}
+          {hasSubmitted && predictions.length > 0 && (
+            <div className="predictions-container">
+              <h2 style={{ fontSize: '20px', fontWeight: '600', marginBottom: '15px', color: 'var(--dark)' }}>
+                التوقعات ({predictions.length})
+              </h2>
+              
+              <div className="predictions-list">
+                {predictions.map((p) => (
+                  <div
+                    key={p._id}
+                    className={`prediction-card ${p.user._id === user.id ? 'mine' : ''}`}
+                  >
+                    <div className="prediction-header">
+                      <div
+                        className="user-avatar"
+                        style={{
+                          backgroundColor: getRandomColor(p.user._id)
+                        }}
+                      >
+                        {getInitial(p.user.username)}
+                      </div>
+                      <div className="user-info">
+                        <div className="username">
+                          {p.user.username} {p.user._id === user.id ? '(أنت)' : ''}
+                        </div>
+                        <div className="timestamp">
+                          <FaClock style={{ fontSize: '11px' }} />
+                          {formatDateTime(p.submittedAt)}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="prediction-content">
+                      {p.content}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          <div style={{ marginTop: '30px', textAlign: 'center' }}>
+            <button 
+              onClick={() => router.push('/sessions')}
+              className="btn btn-secondary"
+              style={{ maxWidth: '200px' }}
             >
-              {getInitial(p.user.username)}
-            </div>
-            <div className="user-info">
-              <div className="username" style={{ fontWeight: '600', color: 'var(--dark)' }}>
-                {p.user.username} {p.user._id === user.id ? '(أنت)' : ''}
-              </div>
-              <div className="timestamp" style={{ fontSize: '12px', color: 'var(--medium)' }}>
-                <FaClock style={{ marginLeft: '5px', display: 'inline-block' }} />
-                {formatDateTime(p.submittedAt)}
-              </div>
-            </div>
+              <FaArrowRight /> العودة إلى الجلسات
+            </button>
           </div>
-          <div className="prediction-content" style={{ whiteSpace: 'pre-wrap', lineHeight: '1.6', color: 'var(--dark)' }}>
-            {p.content}
-          </div>
-        </div>
-      ))}
-    </div>
-  </div>
-)}
         </div>
       </div>
     </Layout>

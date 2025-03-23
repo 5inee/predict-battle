@@ -1,11 +1,19 @@
 import Head from 'next/head';
 import { useRouter } from 'next/router';
-import { FaBolt, FaSignOutAlt } from 'react-icons/fa'; // إضافة أيقونة تسجيل الخروج
-import { useAuth } from '../context/AuthContext'; // استيراد سياق المصادقة
+import { FaBolt, FaSignOutAlt, FaUser } from 'react-icons/fa';
+import { useAuth } from '../context/AuthContext';
+import { useState } from 'react';
 
 export default function Layout({ children, title = 'PredictBattle' }) {
   const router = useRouter();
-  const { isAuthenticated, logout, user } = useAuth(); // استخدام hook المصادقة
+  const { isAuthenticated, logout, user } = useAuth();
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    await logout();
+    // لا نحتاج إلى إعادة تعيين حالة setLoggingOut لأن المكون سيتم إعادة تحميله بعد تسجيل الخروج
+  };
 
   return (
     <>
@@ -17,24 +25,50 @@ export default function Layout({ children, title = 'PredictBattle' }) {
       </Head>
       <div className="app-container">
         <header className="main-header">
-          <div className="logo-container">
+          <div className="logo-container" onClick={() => router.push('/')} style={{ cursor: 'pointer' }}>
             <div className="logo-icon">
               <FaBolt />
             </div>
             <div className="logo-text">PredictBattle</div>
           </div>
 
-          {/* إضافة زر تسجيل الخروج إذا كان المستخدم مسجل دخول */}
           {isAuthenticated() && (
             <div className="user-controls">
-              {user && <span className="username-display">{user.username}</span>}
-              <button onClick={logout} className="logout-btn">
-                <FaSignOutAlt /> تسجيل الخروج
+              {user && (
+                <div className="username-display">
+                  <FaUser style={{ marginLeft: '5px' }} />
+                  {user.username}
+                </div>
+              )}
+              <button 
+                onClick={handleLogout} 
+                className="logout-btn"
+                disabled={loggingOut}
+              >
+                {loggingOut ? (
+                  <>
+                    <div className="loading"></div>
+                    <span>جار تسجيل الخروج...</span>
+                  </>
+                ) : (
+                  <>
+                    <FaSignOutAlt /> تسجيل الخروج
+                  </>
+                )}
               </button>
             </div>
           )}
         </header>
         <main>{children}</main>
+        <footer style={{ 
+          textAlign: 'center', 
+          padding: '20px', 
+          marginTop: '40px',
+          color: 'var(--medium)',
+          fontSize: '14px'
+        }}>
+          <p>PredictBattle © 2025 - منصة التوقعات التفاعلية</p>
+        </footer>
       </div>
     </>
   );
