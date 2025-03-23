@@ -1,9 +1,11 @@
 import Head from 'next/head';
 import { useRouter } from 'next/router';
-import { FaBolt } from 'react-icons/fa';
+import { FaBolt, FaSignOutAlt } from 'react-icons/fa'; // إضافة أيقونة تسجيل الخروج
+import { useAuth } from '../context/AuthContext'; // استيراد سياق المصادقة
 
 export default function Layout({ children, title = 'PredictBattle' }) {
   const router = useRouter();
+  const { isAuthenticated, logout, user } = useAuth(); // استخدام hook المصادقة
 
   return (
     <>
@@ -21,6 +23,16 @@ export default function Layout({ children, title = 'PredictBattle' }) {
             </div>
             <div className="logo-text">PredictBattle</div>
           </div>
+
+          {/* إضافة زر تسجيل الخروج إذا كان المستخدم مسجل دخول */}
+          {isAuthenticated() && (
+            <div className="user-controls">
+              {user && <span className="username-display">{user.username}</span>}
+              <button onClick={logout} className="logout-btn">
+                <FaSignOutAlt /> تسجيل الخروج
+              </button>
+            </div>
+          )}
         </header>
         <main>{children}</main>
       </div>

@@ -41,11 +41,44 @@
   
   .main-header {
     display: flex;
-    justify-content: center;
+    justify-content: space-between; /* تغيير من center إلى space-between */
     align-items: center;
     padding: 20px 0;
     margin-bottom: 40px;
   }
+
+  .user-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .username-display {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--primary);
+  }
+
+  .logout-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background-color: transparent;
+    color: var(--primary);
+    border: 1px solid var(--primary);
+    padding: 8px 16px;
+    border-radius: var(--border-radius-md);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+
+  .logout-btn:hover {
+    background-color: var(--primary);
+    color: white;
+  }
+  
   
   .logo-container {
     display: flex;
@@ -384,3 +417,5 @@
   .back-to-auth:hover {
     text-decoration: underline;
   }
+
+  
