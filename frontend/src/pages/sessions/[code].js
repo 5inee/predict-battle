@@ -8,12 +8,18 @@ import {
   FaPaperPlane,
   FaExclamationTriangle,
   FaCheck,
-  FaSpinner,
-  FaUser,
   FaUsers,
-  FaArrowRight,
+  FaHashtag,
+  FaSpinner,
+  FaArrowLeft,
   FaShare,
-  FaCopy
+  FaExclamationCircle,
+  FaHourglassHalf,
+  FaSadTear,
+  FaUserCheck,
+  FaUserEdit,
+  FaLock,
+  FaExclamationCircle
 } from 'react-icons/fa';
 
 export default function SessionDetail() {
@@ -24,11 +30,15 @@ export default function SessionDetail() {
   const [prediction, setPrediction] = useState('');
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [copiedToClipboard, setCopiedToClipboard] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [copySuccess, setCopySuccess] = useState(false);
+  const [remainingChars, setRemainingChars] = useState(1000);
   
   const { user, isAuthenticated } = useAuth();
   const router = useRouter();
   const { code } = router.query;
+
+  const MAX_CHARS = 1000; // الحد الأقصى للأحرف في التوقع
 
   // التحقق من تسجيل الدخول
   useEffect(() => {
@@ -55,7 +65,7 @@ export default function SessionDetail() {
         
         setLoading(false);
       } catch (err) {
-        setError('فشل في تحميل تفاصيل الجلسة');
+        setError(err.response?.data?.message || 'فشل في تحميل تفاصيل الجلسة');
         setLoading(false);
       }
     };
@@ -65,16 +75,10 @@ export default function SessionDetail() {
     }
   }, [code, isAuthenticated, user]);
 
-  // مسح إشعار النسخ بعد 3 ثوان
+  // تتبع عدد الأحرف المتبقية
   useEffect(() => {
-    if (copiedToClipboard) {
-      const timer = setTimeout(() => {
-        setCopiedToClipboard(false);
-      }, 3000);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [copiedToClipboard]);
+    setRemainingChars(MAX_CHARS - prediction.length);
+  }, [prediction]);
 
   // إرسال التوقع
   const handleSubmitPrediction = async (e) => {
@@ -84,8 +88,14 @@ export default function SessionDetail() {
       return;
     }
 
+    if (prediction.length > MAX_CHARS) {
+      setError(`الرجاء تقليل عدد الأحرف إلى ${MAX_CHARS} حرف كحد أقصى`);
+      return;
+    }
+
     try {
       setSubmitting(true);
+      setError(null);
       const response = await api.post('/predictions', {
         sessionId: session._id,
         content: prediction
@@ -93,7 +103,6 @@ export default function SessionDetail() {
       
       setPredictions(response.data.predictions);
       setHasSubmitted(true);
-      setPrediction('');
       setSubmitting(false);
     } catch (err) {
       setError(err.response?.data?.message || 'فشل في إرسال التوقع');
@@ -101,13 +110,17 @@ export default function SessionDetail() {
     }
   };
 
-  // نسخ رابط المشاركة
-  const handleShareClick = () => {
-    if (typeof window !== 'undefined' && session) {
-      const url = `${window.location.origin}/sessions/${session.code}`;
-      navigator.clipboard.writeText(url);
-      setCopiedToClipboard(true);
-    }
+  // مشاركة الجلسة
+  const handleShare = () => {
+    setShowShareModal(true);
+  };
+
+  // نسخ رابط الجلسة
+  const copySessionLink = () => {
+    const sessionLink = `${window.location.origin}/sessions/${code}`;
+    navigator.clipboard.writeText(sessionLink);
+    setCopySuccess(true);
+    setTimeout(() => setCopySuccess(false), 2000);
   };
 
   // تنسيق التاريخ والوقت
@@ -124,14 +137,14 @@ export default function SessionDetail() {
 
   // الحصول على الحرف الأول من اسم المستخدم
   const getInitial = (username) => {
-    return username ? username.charAt(0).toUpperCase() : '?';
+    return username ? username.charAt(0).toUpperCase() : '؟';
   };
 
   // توليد لون عشوائي ثابت لكل مستخدم
   const getRandomColor = (userId) => {
     const colors = [
-      '#4f46e5', '#0ea5e9', '#06b6d4', '#10b981', '#f59e0b',
-      '#8b5cf6', '#ec4899', '#f43f5e', '#6366f1', '#14b8a6'
+      '#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f97316',
+      '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#6b7280'
     ];
     
     // استخدام رقم المستخدم لتحديد اللون
@@ -139,13 +152,20 @@ export default function SessionDetail() {
     return colors[index];
   };
 
+  // العودة إلى صفحة الجلسات
+  const handleBack = () => {
+    router.push('/sessions');
+  };
+
   if (!isAuthenticated() || loading) {
     return (
       <Layout title="PredictBattle - جاري التحميل">
         <div className="card">
-          <div className="card-body" style={{ textAlign: 'center', padding: '60px 20px' }}>
-            <FaSpinner style={{ fontSize: '32px', marginBottom: '16px', color: 'var(--primary)', animation: 'spin 1s linear infinite' }} />
-            <div>جاري تحميل تفاصيل الجلسة...</div>
+          <div className="card-body">
+            <div className="no-sessions" style={{ padding: '100px 0' }}>
+              <FaHourglassHalf size={40} style={{ marginBottom: '15px', opacity: 0.5, animation: 'spin 2s linear infinite' }} />
+              <div>جاري تحميل تفاصيل الجلسة...</div>
+            </div>
           </div>
         </div>
       </Layout>
@@ -158,10 +178,11 @@ export default function SessionDetail() {
         <div className="card">
           <div className="card-body">
             <div className="alert alert-error">
-              <FaExclamationTriangle /> {error}
+              <FaExclamationCircle />
+              <span>{error}</span>
             </div>
-            <button onClick={() => router.push('/sessions')} className="btn btn-primary">
-              <FaArrowRight /> العودة إلى الجلسات
+            <button onClick={handleBack} className="btn btn-primary">
+              <FaArrowLeft /> العودة إلى الجلسات
             </button>
           </div>
         </div>
@@ -173,12 +194,12 @@ export default function SessionDetail() {
     return (
       <Layout title="PredictBattle - غير موجود">
         <div className="card">
-          <div className="card-body">
-            <div className="alert alert-error">
-              <FaExclamationTriangle /> الجلسة غير موجودة
-            </div>
-            <button onClick={() => router.push('/sessions')} className="btn btn-primary">
-              <FaArrowRight /> العودة إلى الجلسات
+          <div className="card-body" style={{ textAlign: 'center', padding: '40px 20px' }}>
+            <FaSadTear size={60} style={{ color: 'var(--medium)', marginBottom: '20px', opacity: 0.7 }} />
+            <h2 style={{ fontSize: '24px', marginBottom: '15px', color: 'var(--dark)' }}>الجلسة غير موجودة</h2>
+            <p style={{ color: 'var(--medium)', marginBottom: '25px' }}>لم نتمكن من العثور على الجلسة المطلوبة</p>
+            <button onClick={handleBack} className="btn btn-primary" style={{ maxWidth: '200px', margin: '0 auto' }}>
+              <FaArrowLeft /> العودة إلى الجلسات
             </button>
           </div>
         </div>
@@ -190,122 +211,141 @@ export default function SessionDetail() {
     <Layout title={`PredictBattle - ${session.question}`}>
       <div className="card">
         <div className="card-header">
-          <h1>{session.question}</h1>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
-            <p className="subtitle">
-              كود الجلسة: <strong>{session.code}</strong> | المشاركون: {session.participants.length}/{session.maxPlayers}
-            </p>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <h1>{session.question}</h1>
             <button 
-              onClick={handleShareClick} 
-              className="btn btn-secondary"
-              style={{ 
-                padding: '6px 12px', 
+              onClick={handleShare}
+              style={{
+                background: 'rgba(255, 255, 255, 0.2)',
+                border: 'none',
+                padding: '8px 12px',
+                borderRadius: 'var(--border-radius-md)',
+                color: 'white',
+                cursor: 'pointer',
                 fontSize: '14px',
-                backgroundColor: copiedToClipboard ? 'var(--success)' : '',
-                color: copiedToClipboard ? 'white' : ''
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                transition: 'var(--transition-normal)'
               }}
+              onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)'}
+              onMouseOut={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)'}
             >
-              {copiedToClipboard ? (
-                <>
-                  <FaCheck /> تم النسخ
-                </>
-              ) : (
-                <>
-                  <FaShare /> مشاركة
-                </>
-              )}
+              <FaShare />
+              <span>مشاركة</span>
             </button>
           </div>
+          <div className="subtitle" style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginTop: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <FaHashtag style={{ opacity: 0.8 }} />
+              <span>كود الجلسة: {session.code}</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <FaUsers style={{ opacity: 0.8 }} />
+              <span>المشاركون: {session.participants.length}/{session.maxPlayers}</span>
+            </div>
+          </div>
         </div>
+        
         <div className="card-body">
           {/* حالة الجلسة */}
           {session.participants.length < session.maxPlayers && (
             <div className="alert alert-warning">
-              <FaExclamationTriangle /> في انتظار انضمام المشاركين... ({session.participants.length}/{session.maxPlayers})
+              <FaExclamationTriangle />
+              <span>
+                في انتظار انضمام اللاعبين... ({session.participants.length}/{session.maxPlayers})
+                {session.participants.length > 1 && " - بإمكانك إرسال توقعك حتى مع عدم اكتمال العدد"}
+              </span>
             </div>
           )}
           
-          {hasSubmitted && (
+          {hasSubmitted && predictions.length === 1 && (
+            <div className="alert alert-info">
+              <FaUserCheck />
+              <span>تم إرسال توقعك بنجاح! في انتظار مشاركة باقي المتسابقين لتوقعاتهم...</span>
+            </div>
+          )}
+          
+          {hasSubmitted && predictions.length > 1 && (
             <div className="alert alert-success">
-              <FaCheck /> تم إرسال توقعك بنجاح! يمكنك الآن مشاهدة توقعات الآخرين.
+              <FaCheck />
+              <span>تم إرسال توقعك بنجاح! يمكنك الآن مشاهدة توقعات المشاركين الآخرين.</span>
             </div>
           )}
-          
-          {/* قائمة المشاركين */}
-          <div className="participants-container">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-              <FaUsers style={{ color: 'var(--primary)' }} />
-              <h2 style={{ fontSize: '18px', margin: 0 }}>المشاركون</h2>
-            </div>
-            
-            <div className="participants-list" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '24px' }}>
-              {session.participants.map((participant) => (
-                <div
-                  key={participant.user._id}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    backgroundColor: 'var(--light)',
-                    padding: '8px 12px',
-                    borderRadius: '20px',
-                    fontSize: '14px'
-                  }}
-                >
-                  <div
-                    style={{
-                      width: '26px',
-                      height: '26px',
-                      borderRadius: '50%',
-                      backgroundColor: getRandomColor(participant.user._id),
-                      color: 'white',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontWeight: 'bold',
-                      fontSize: '12px'
-                    }}
-                  >
-                    {getInitial(participant.user.username)}
-                  </div>
-                  <span>
-                    {participant.user.username}
-                    {participant.user._id === user.id && " (أنت)"}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
           
           {/* نموذج إرسال التوقع */}
           {!hasSubmitted && (
-            <div className="prediction-form-container">
+            <div style={{
+              background: 'rgba(99, 102, 241, 0.05)',
+              padding: '25px',
+              borderRadius: 'var(--border-radius-lg)',
+              marginBottom: '25px',
+              border: '1px solid rgba(99, 102, 241, 0.1)'
+            }}>
+              <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '15px', color: 'var(--primary)' }}>
+                <FaUserEdit style={{ marginLeft: '8px', display: 'inline', verticalAlign: 'middle' }} />
+                أدخل توقعك
+              </h2>
+              
+              {error && (
+                <div className="alert alert-error" style={{ marginBottom: '15px' }}>
+                  <FaExclamationCircle />
+                  <span>{error}</span>
+                </div>
+              )}
+              
               <form onSubmit={handleSubmitPrediction}>
-                <div className="form-group">
-                  <label htmlFor="prediction">أدخل توقعك للسؤال المطروح</label>
-                  <div className="input-wrapper">
-                    <textarea
-                      id="prediction"
-                      value={prediction}
-                      onChange={(e) => setPrediction(e.target.value)}
-                      placeholder="اكتب توقعك هنا... كن مبدعاً ودقيقاً في إجابتك!"
-                      rows="4"
-                      disabled={submitting}
-                    />
+                <div className="form-group" style={{ marginBottom: '15px' }}>
+                  <textarea
+                    value={prediction}
+                    onChange={(e) => setPrediction(e.target.value)}
+                    placeholder="اكتب توقعك هنا... (الحد الأقصى 1000 حرف)"
+                    rows="5"
+                    style={{
+                      width: '100%',
+                      padding: '15px',
+                      borderRadius: 'var(--border-radius-md)',
+                      border: remainingChars < 0 ? '2px solid var(--error)' : '2px solid #e2e8f0',
+                      resize: 'vertical',
+                      transition: 'var(--transition-normal)',
+                      fontFamily: 'inherit'
+                    }}
+                    disabled={submitting}
+                    maxLength={MAX_CHARS}
+                  />
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    marginTop: '8px',
+                    fontSize: '13px',
+                    color: remainingChars < 0 ? 'var(--error)' : remainingChars < 100 ? 'var(--warning)' : 'var(--medium)'
+                  }}>
+                    <span>
+                      {remainingChars < 0 ? (
+                        <FaExclamationCircle style={{ marginLeft: '5px' }} />
+                      ) : null}
+                      المتبقي: {remainingChars} حرف
+                    </span>
+                    <span>
+                      {prediction.length} / {MAX_CHARS}
+                    </span>
                   </div>
                 </div>
+                
                 <button
                   type="submit"
                   className="btn btn-primary"
-                  disabled={submitting}
+                  disabled={submitting || remainingChars < 0}
+                  style={{ maxWidth: '200px' }}
                 >
                   {submitting ? (
                     <>
-                      <FaSpinner className="spin" /> جاري إرسال التوقع...
+                      <FaSpinner style={{ animation: 'spin 1s linear infinite' }} />
+                      <span>جاري الإرسال...</span>
                     </>
                   ) : (
                     <>
-                      <FaPaperPlane /> إرسال توقعي
+                      <FaPaperPlane /> إرسال التوقع
                     </>
                   )}
                 </button>
@@ -316,16 +356,23 @@ export default function SessionDetail() {
           {/* عرض التوقعات */}
           {hasSubmitted && predictions.length > 0 && (
             <div className="predictions-container">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', marginTop: '32px' }}>
-                <FaUser style={{ color: 'var(--primary)' }} />
-                <h2 style={{ fontSize: '18px', margin: 0 }}>التوقعات</h2>
-              </div>
+              <h2 style={{ 
+                fontSize: '20px', 
+                fontWeight: '600', 
+                marginBottom: '20px', 
+                color: 'var(--dark)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <FaUsers /> توقعات المشاركين ({predictions.length})
+              </h2>
               
               <div className="predictions-list">
                 {predictions.map((p) => (
                   <div
                     key={p._id}
-                    className={`prediction-card ${p.user._id === user.id ? 'current-user' : ''}`}
+                    className={`prediction-card ${p.user._id === user.id ? 'self' : ''}`}
                   >
                     <div className="prediction-header">
                       <div
@@ -342,7 +389,7 @@ export default function SessionDetail() {
                         </div>
                         <div className="timestamp">
                           <FaClock style={{ fontSize: '12px' }} />
-                          {formatDateTime(p.submittedAt)}
+                          <span>{formatDateTime(p.submittedAt)}</span>
                         </div>
                       </div>
                     </div>
@@ -355,14 +402,115 @@ export default function SessionDetail() {
             </div>
           )}
           
-          {/* زر العودة */}
-          <div style={{ marginTop: '24px' }}>
-            <div className="back-link" onClick={() => router.push('/sessions')}>
-              <FaArrowRight /> العودة إلى قائمة الجلسات
-            </div>
+          {/* زر العودة للجلسات */}
+          <div style={{ marginTop: '20px', textAlign: 'center' }}>
+            <button 
+              onClick={handleBack} 
+              className="btn btn-secondary" 
+              style={{ maxWidth: '200px' }}
+            >
+              <FaArrowLeft /> العودة إلى الجلسات
+            </button>
           </div>
         </div>
       </div>
+      
+      {/* مودال المشاركة */}
+      {showShareModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: 'var(--border-radius-lg)',
+            width: '100%',
+            maxWidth: '450px',
+            padding: '25px',
+            boxShadow: 'var(--shadow-lg)'
+          }}>
+            <h3 style={{ fontSize: '20px', marginBottom: '15px' }}>مشاركة الجلسة</h3>
+            
+            {copySuccess && (
+              <div className="alert alert-success" style={{ marginBottom: '15px' }}>
+                <FaCheck />
+                <span>تم نسخ الرابط بنجاح!</span>
+              </div>
+            )}
+            
+            <p style={{ marginBottom: '15px', color: 'var(--medium)' }}>
+              شارك هذا الرابط مع أصدقائك للانضمام إلى الجلسة:
+            </p>
+            
+            <div style={{
+              display: 'flex',
+              marginBottom: '20px',
+              gap: '10px'
+            }}>
+              <input
+                type="text"
+                value={`${typeof window !== 'undefined' ? window.location.origin : ''}/sessions/${code}`}
+                readOnly
+                style={{
+                  padding: '12px',
+                  borderRadius: 'var(--border-radius-md)',
+                  border: '1px solid #e2e8f0',
+                  flex: 1,
+                  backgroundColor: '#f8fafc'
+                }}
+              />
+              <button
+                onClick={copySessionLink}
+                className="btn btn-primary"
+                style={{ width: 'auto', margin: 0, padding: '10px 15px' }}
+              >
+                <FaShare /> نسخ
+              </button>
+            </div>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px' }}>
+              <div>
+                <strong>كود الجلسة: </strong> {code}
+              </div>
+              <button
+                onClick={() => setShowShareModal(false)}
+                style={{
+                  backgroundColor: 'transparent',
+                  border: 'none',
+                  color: 'var(--primary)',
+                  cursor: 'pointer',
+                  fontSize: '15px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px'
+                }}
+              >
+                إغلاق
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* أضف أنماط CSS لدوران الأيقونة */}
+      <style jsx>{`
+        @keyframes spin {
+          from {
+            transform: rotate(0deg);
+          }
+          to {
+            transform: rotate(360deg);
+          }
+        }
+      `}</style>
     </Layout>
   );
 }

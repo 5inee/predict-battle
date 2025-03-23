@@ -11,10 +11,17 @@ import {
   FaSearch,
   FaArrowRight,
   FaSignOutAlt,
-  FaExclamationTriangle,
-  FaCheckCircle,
-  FaSpinner,
-  FaQuestion
+  FaCloudUploadAlt,
+  FaExclamationCircle,
+  FaSyncAlt,
+  FaKey,
+  FaQuestion,
+  FaChevronRight,
+  FaHashtag,
+  FaInfoCircle,
+  FaClipboard,
+  FaHourglassHalf,
+  FaBoxOpen
 } from 'react-icons/fa';
 
 export default function Sessions() {
@@ -24,21 +31,15 @@ export default function Sessions() {
   const [userSessions, setUserSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [question, setQuestion] = useState('');
   const [maxPlayers, setMaxPlayers] = useState(5);
   const [secretCode, setSecretCode] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [copySuccess, setCopySuccess] = useState(false);
   
   const { user, logout } = useAuth();
   const router = useRouter();
-
-  // دالة لتسجيل الخروج
-  const handleLogout = () => {
-    logout();
-    router.push('/');
-  };
 
   // التحقق من تسجيل الدخول
   useEffect(() => {
@@ -66,41 +67,47 @@ export default function Sessions() {
     }
   }, [user]);
 
-  // مسح الرسائل بعد فترة زمنية
-  useEffect(() => {
-    if (error || success) {
-      const timer = setTimeout(() => {
-        setError(null);
-        setSuccess(null);
-      }, 5000);
-      return () => clearTimeout(timer);
+  // تسجيل الخروج
+  const handleLogout = () => {
+    logout();
+    router.push('/');
+  };
+
+  // تحديث الجلسات
+  const refreshSessions = async () => {
+    if (!user) return;
+    
+    try {
+      setLoading(true);
+      const response = await api.get('/sessions/user');
+      setUserSessions(response.data);
+      setLoading(false);
+    } catch (err) {
+      setError('فشل في تحديث الجلسات');
+      setLoading(false);
     }
-  }, [error, success]);
+  };
 
   // تغيير التبويب النشط
   const handleTabChange = (tabId) => {
     setActiveTab(tabId);
-    // عند التبديل بين التبويبات، نقوم بإعادة تعيين بعض الحالات
     setError(null);
-    setSuccess(null);
-    setShowCreateForm(false);
   };
 
   // الانضمام إلى جلسة
   const handleJoinSession = async (e) => {
     e.preventDefault();
+    setError(null);
+    
     if (!gameCode.trim()) {
       setError('الرجاء إدخال كود اللعبة');
       return;
     }
 
+    setIsSubmitting(true);
     try {
-      setIsSubmitting(true);
       await api.post(`/sessions/join/${gameCode}`);
-      setSuccess('تم الانضمام إلى اللعبة بنجاح!');
-      setTimeout(() => {
-        router.push(`/sessions/${gameCode}`);
-      }, 1000);
+      router.push(`/sessions/${gameCode}`);
     } catch (err) {
       setError(err.response?.data?.message || 'فشل في الانضمام إلى الجلسة');
       setIsSubmitting(false);
@@ -110,27 +117,27 @@ export default function Sessions() {
   // إنشاء جلسة جديدة
   const handleCreateSession = async (e) => {
     e.preventDefault();
+    setError(null);
+    
     if (!question.trim()) {
       setError('الرجاء إدخال سؤال التحدي');
       return;
     }
+    
     if (secretCode !== '021') {
       setError('الرمز السري غير صحيح');
       return;
     }
 
+    setIsSubmitting(true);
     try {
-      setIsSubmitting(true);
       const response = await api.post('/sessions', {
         question,
         maxPlayers: parseInt(maxPlayers),
         secretCode
       });
       
-      setSuccess('تم إنشاء اللعبة بنجاح! جاري توجيهك إليها...');
-      setTimeout(() => {
-        router.push(`/sessions/${response.data.code}`);
-      }, 1000);
+      router.push(`/sessions/${response.data.code}`);
     } catch (err) {
       setError(err.response?.data?.message || 'فشل في إنشاء الجلسة');
       setIsSubmitting(false);
@@ -141,12 +148,19 @@ export default function Sessions() {
   const toggleCreateForm = () => {
     setShowCreateForm(!showCreateForm);
     setError(null);
-    setSuccess(null);
+  };
+
+  // نسخ كود الجلسة
+  const copyToClipboard = (code) => {
+    navigator.clipboard.writeText(code);
+    setCopySuccess(true);
+    setTimeout(() => setCopySuccess(false), 2000);
   };
 
   // تصفية الجلسات حسب مصطلح البحث
   const filteredSessions = userSessions.filter(session =>
-    session.question.toLowerCase().includes(searchTerm.toLowerCase())
+    session.question.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    session.code.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   // تنسيق التاريخ
@@ -159,33 +173,14 @@ export default function Sessions() {
     });
   };
 
-  // الحصول على ترجمة لحالة الجلسة
-  const getStatusText = (status) => {
-    switch (status) {
-      case 'waiting': return 'في الانتظار';
-      case 'active': return 'نشطة';
-      case 'completed': return 'مكتملة';
-      default: return 'غير معروفة';
-    }
-  };
-
-  // الحصول على تصنيف CSS لحالة الجلسة
-  const getStatusClass = (status) => {
-    switch (status) {
-      case 'waiting': return 'status-badge-waiting';
-      case 'active': return 'status-badge-active';
-      case 'completed': return 'status-badge-completed';
-      default: return '';
-    }
-  };
-
-  // الحصول على أيقونة لحالة الجلسة
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'waiting': return <FaExclamationTriangle />;
-      case 'active': return <FaCheckCircle />;
-      case 'completed': return <FaCheckCircle />;
-      default: return <FaQuestion />;
+  // حالة الجلسة
+  const getSessionStatus = (session) => {
+    if (session.status === 'completed') {
+      return { text: 'مكتملة', color: 'var(--success)' };
+    } else if (session.participants.length < session.maxPlayers) {
+      return { text: 'في انتظار اللاعبين', color: 'var(--warning)' };
+    } else {
+      return { text: 'نشطة', color: 'var(--info)' };
     }
   };
 
@@ -199,18 +194,16 @@ export default function Sessions() {
       <div className="card">
         <div className="card-header">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h1>الجلسات والتحديات</h1>
-            {user && (
-              <button 
-                onClick={handleLogout}
-                className="logout-button"
-              >
-                <FaSignOutAlt />
-                <span>تسجيل الخروج</span>
-              </button>
-            )}
+            <h1>جلسات التوقعات</h1>
+            <button 
+              onClick={handleLogout}
+              className="logout-button"
+            >
+              <FaSignOutAlt />
+              <span>تسجيل الخروج</span>
+            </button>
           </div>
-          <p className="subtitle">انضم إلى جلسة موجودة أو قم بإنشاء تحدي جديد</p>
+          <p className="subtitle">انضم إلى جلسة توقعات موجودة أو قم بإنشاء جلسة جديدة</p>
           
           {/* نظام التبويبات */}
           <div className="tabs-container">
@@ -229,16 +222,19 @@ export default function Sessions() {
             <div className={`tab-indicator ${activeTab === 'my-sessions-tab' ? 'second' : ''}`}></div>
           </div>
         </div>
+        
         <div className="card-body">
           {error && (
             <div className="alert alert-error">
-              <FaExclamationTriangle /> {error}
+              <FaExclamationCircle />
+              <span>{error}</span>
             </div>
           )}
           
-          {success && (
+          {copySuccess && (
             <div className="alert alert-success">
-              <FaCheckCircle /> {success}
+              <FaClipboard />
+              <span>تم نسخ كود الجلسة بنجاح!</span>
             </div>
           )}
           
@@ -249,32 +245,26 @@ export default function Sessions() {
                 <>
                   <form onSubmit={handleJoinSession}>
                     <div className="form-group">
-                      <label htmlFor="gameId">كود اللعبة</label>
+                      <label htmlFor="gameId">كود الجلسة</label>
                       <div className="input-wrapper">
+                        <FaHashtag className="input-icon" />
                         <input
                           type="text"
                           id="gameId"
                           value={gameCode}
-                          onChange={(e) => setGameCode(e.target.value)}
-                          placeholder="أدخل كود اللعبة المكون من 6 أحرف"
+                          onChange={(e) => setGameCode(e.target.value.toUpperCase())}
+                          placeholder="أدخل كود الجلسة المكون من 6 أحرف"
+                          autoFocus
                           disabled={isSubmitting}
-                          maxLength={6}
                         />
-                        <FaGamepad className="input-icon" />
                       </div>
                     </div>
-                    <button 
-                      type="submit" 
-                      className="btn btn-primary full-width"
-                      disabled={isSubmitting}
-                    >
+                    <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
                       {isSubmitting ? (
-                        <>
-                          <FaSpinner className="spin" /> جاري الانضمام...
-                        </>
+                        <span>جاري الانضمام...</span>
                       ) : (
                         <>
-                          <FaUsers /> انضم إلى اللعبة
+                          <FaUsers /> انضم إلى الجلسة
                         </>
                       )}
                     </button>
@@ -284,12 +274,8 @@ export default function Sessions() {
                     <span>أو</span>
                   </div>
                   
-                  <button 
-                    onClick={toggleCreateForm} 
-                    className="btn btn-secondary full-width"
-                    disabled={isSubmitting}
-                  >
-                    <FaPlusCircle /> إنشاء تحدي جديد
+                  <button onClick={toggleCreateForm} className="btn btn-secondary">
+                    <FaPlusCircle /> إنشاء جلسة جديدة
                   </button>
                 </>
               ) : (
@@ -298,33 +284,39 @@ export default function Sessions() {
                     <div className="form-group">
                       <label htmlFor="question">سؤال التحدي</label>
                       <div className="input-wrapper">
-                        <textarea
+                        <FaQuestion className="input-icon" />
+                        <input
+                          type="text"
                           id="question"
                           value={question}
                           onChange={(e) => setQuestion(e.target.value)}
                           placeholder="مثال: ما هي أكبر ثلاث تقنيات ستغير العالم في السنوات الخمس القادمة؟"
+                          autoFocus
                           disabled={isSubmitting}
                         />
                       </div>
                     </div>
+                    
                     <div className="form-group">
-                      <label htmlFor="maxPlayers">عدد المشاركين</label>
+                      <label htmlFor="maxPlayers">عدد المشاركين (2-20)</label>
                       <div className="input-wrapper">
+                        <FaUsers className="input-icon" />
                         <input
                           type="number"
                           id="maxPlayers"
                           value={maxPlayers}
-                          onChange={(e) => setMaxPlayers(e.target.value)}
+                          onChange={(e) => setMaxPlayers(Math.min(20, Math.max(2, e.target.value)))}
                           min="2"
                           max="20"
                           disabled={isSubmitting}
                         />
-                        <FaUsers className="input-icon" />
                       </div>
                     </div>
+                    
                     <div className="form-group">
                       <label htmlFor="secretCode">الرمز السري</label>
                       <div className="input-wrapper">
+                        <FaKey className="input-icon" />
                         <input
                           type="password"
                           id="secretCode"
@@ -333,28 +325,33 @@ export default function Sessions() {
                           placeholder="أدخل الرمز السري للسماح بإنشاء جلسة"
                           disabled={isSubmitting}
                         />
-                        <FaLock className="input-icon" />
+                      </div>
+                      <div style={{
+                        fontSize: '13px',
+                        marginTop: '8px',
+                        color: 'var(--medium)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '5px'
+                      }}>
+                        <FaInfoCircle />
+                        <span>الرمز السري مطلوب لإنشاء جلسات جديدة، تواصل مع المسؤول للحصول عليه.</span>
                       </div>
                     </div>
-                    <button 
-                      type="submit" 
-                      className="btn btn-primary full-width"
-                      disabled={isSubmitting}
-                    >
+                    
+                    <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
                       {isSubmitting ? (
-                        <>
-                          <FaSpinner className="spin" /> جاري إنشاء التحدي...
-                        </>
+                        <span>جاري إنشاء الجلسة...</span>
                       ) : (
                         <>
-                          <FaPlusCircle /> إنشاء التحدي
+                          <FaCloudUploadAlt /> إنشاء الجلسة
                         </>
                       )}
                     </button>
                   </form>
                   
-                  <div className="back-link" onClick={toggleCreateForm}>
-                    <FaArrowRight /> العودة إلى الانضمام
+                  <div className="back-to-auth" onClick={toggleCreateForm}>
+                    <FaArrowRight /> العودة
                   </div>
                 </>
               )}
@@ -364,56 +361,133 @@ export default function Sessions() {
           {/* محتوى تبويب جلساتي */}
           {activeTab === 'my-sessions-tab' && (
             <div className="tab-content active" id="my-sessions-tab">
-              <div className="search-bar">
-                <div className="input-wrapper">
-                  <input
-                    type="text"
-                    placeholder="ابحث في التحديات..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                  <FaSearch className="input-icon" />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                <div className="search-bar" style={{ flex: 1, marginLeft: '10px' }}>
+                  <div className="input-wrapper">
+                    <FaSearch className="input-icon" />
+                    <input
+                      type="text"
+                      placeholder="ابحث عن جلسة..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                  </div>
                 </div>
+                
+                <button 
+                  onClick={refreshSessions} 
+                  style={{
+                    background: 'transparent',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: 'var(--border-radius-md)',
+                    padding: '10px',
+                    cursor: 'pointer',
+                    color: 'var(--medium)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'var(--transition-normal)'
+                  }}
+                  title="تحديث الجلسات"
+                  disabled={loading}
+                >
+                  <FaSyncAlt style={{ transform: loading ? 'rotate(360deg)' : 'none', transition: 'transform 1s' }} />
+                </button>
               </div>
               
               <div className="sessions-list">
                 {loading ? (
                   <div className="no-sessions">
-                    <FaSpinner className="spin" /> جاري تحميل الجلسات...
+                    <FaHourglassHalf size={40} style={{ marginBottom: '15px', opacity: 0.5 }} />
+                    جاري تحميل الجلسات...
                   </div>
                 ) : filteredSessions.length > 0 ? (
-                  filteredSessions.map((session) => (
-                    <div
-                      key={session._id}
-                      className="session-card"
-                      onClick={() => router.push(`/sessions/${session.code}`)}
-                    >
-                      <div className="session-title">
-                        {session.question}
-                      </div>
-                      <div className="session-meta">
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  filteredSessions.map((session) => {
+                    const statusInfo = getSessionStatus(session);
+                    
+                    return (
+                      <div
+                        key={session._id}
+                        className="session-card"
+                        onClick={() => router.push(`/sessions/${session.code}`)}
+                        style={{ borderRight: `4px solid ${statusInfo.color}` }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <div className="session-title">{session.question}</div>
+                          <div 
+                            style={{
+                              cursor: 'pointer',
+                              padding: '3px 7px',
+                              borderRadius: '4px',
+                              fontSize: '13px',
+                              color: 'var(--primary)',
+                              background: 'rgba(99, 102, 241, 0.1)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              marginRight: '10px'
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              copyToClipboard(session.code);
+                            }}
+                            title="نسخ كود الجلسة"
+                          >
+                            <span>{session.code}</span>
+                            <FaClipboard size={12} />
+                          </div>
+                        </div>
+                        
+                        <div style={{ 
+                          fontSize: '13px', 
+                          marginTop: '5px', 
+                          marginBottom: '12px',
+                          display: 'inline-block',
+                          padding: '3px 8px',
+                          borderRadius: '4px',
+                          background: `${statusInfo.color}20`,
+                          color: statusInfo.color
+                        }}>
+                          {statusInfo.text}
+                        </div>
+                        
+                        <div className="session-meta">
                           <div className="session-date">
-                            <FaCalendarAlt />
+                            <FaCalendarAlt size={14} />
                             <span>{formatDate(session.createdAt)}</span>
                           </div>
-                          <div className={`status-badge ${getStatusClass(session.status)}`}>
-                            {getStatusIcon(session.status)}
-                            <span>{getStatusText(session.status)}</span>
+                          <div className="session-players">
+                            <FaUsers size={14} />
+                            <span>
+                              {session.participants.length}/{session.maxPlayers} لاعبين
+                            </span>
+                          </div>
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                            marginRight: 'auto'
+                          }}>
+                            <FaChevronRight size={12} />
                           </div>
                         </div>
-                        <div className="session-players">
-                          <FaUsers />
-                          <span>
-                            {session.participants.length}/{session.maxPlayers}
-                          </span>
-                        </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 ) : (
                   <div className="no-sessions">
-                    لا توجد جلسات متاحة. قم بإنشاء جلسة جديدة أو انضم إلى جلسة موجودة.
+                    <FaBoxOpen size={50} style={{ marginBottom: '15px', opacity: 0.5 }} />
+                    <p>لا توجد جلسات متاحة</p>
+                    <button 
+                      onClick={() => {
+                        setActiveTab('join-tab');
+                        setShowCreateForm(true);
+                      }} 
+                      className="btn btn-primary" 
+                      style={{ maxWidth: '250px', marginTop: '15px' }}
+                    >
+                      <FaPlusCircle /> إنشاء جلسة جديدة
+                    </button>
                   </div>
                 )}
               </div>
