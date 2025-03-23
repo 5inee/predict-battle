@@ -50,6 +50,7 @@ exports.createSession = async (req, res) => {
 };
 
 // Join session
+// في ملف backend/src/controllers/sessions.js
 exports.joinSession = async (req, res) => {
   try {
     const { code } = req.params;
@@ -61,18 +62,22 @@ exports.joinSession = async (req, res) => {
       return res.status(404).json({ message: 'Session not found' });
     }
     
-    // Check if session is full
+    // Check if user already joined
+    const isParticipant = session.participants.some(p => p.user._id.toString() === req.user._id.toString());
+    
+    if (isParticipant) {
+      // إذا كان المستخدم مشاركًا بالفعل، أرسل له الجلسة مباشرةً دون رسالة خطأ
+      return res.status(200).json(session);
+    }
+    
+    // Check if session is full (فقط إذا لم يكن المستخدم مشاركًا بالفعل)
     if (session.participants.length >= session.maxPlayers) {
       return res.status(400).json({ message: 'Session is full' });
     }
     
-    // Check if user already joined
-    const isParticipant = session.participants.some(p => p.user._id.toString() === req.user._id.toString());
-    
-    if (!isParticipant) {
-      session.participants.push({ user: req.user._id });
-      await session.save();
-    }
+    // إضافة المستخدم كمشارك جديد
+    session.participants.push({ user: req.user._id });
+    await session.save();
     
     res.status(200).json(session);
   } catch (error) {
