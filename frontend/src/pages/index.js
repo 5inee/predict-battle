@@ -1,18 +1,20 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '../components/Layout';
-import { FaSignInAlt, FaUserPlus, FaBrain, FaLock, FaUser, FaArrowRight } from 'react-icons/fa';
+import { FaSignInAlt, FaUserPlus, FaBrain, FaLock, FaUser, FaArrowRight, FaRegSmile } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
 
 export default function Home() {
   const [showAuthCard, setShowAuthCard] = useState(true);
   const [showLoginForm, setShowLoginForm] = useState(false);
   const [showRegisterForm, setShowRegisterForm] = useState(false);
+  const [showGuestForm, setShowGuestForm] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [guestName, setGuestName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { login, register, error, setError, clearError } = useAuth();
+  const { login, register, loginAsGuest, error, setError, clearError } = useAuth();
   const router = useRouter();
 
   // التحقق مما إذا كان المستخدم قد قام بتسجيل الدخول
@@ -29,6 +31,7 @@ export default function Home() {
     setShowAuthCard(false);
     setShowLoginForm(true);
     setShowRegisterForm(false);
+    setShowGuestForm(false);
   };
 
   const handleRegisterClick = () => {
@@ -36,6 +39,15 @@ export default function Home() {
     setShowAuthCard(false);
     setShowLoginForm(false);
     setShowRegisterForm(true);
+    setShowGuestForm(false);
+  };
+
+  const handleGuestClick = () => {
+    clearError();
+    setShowAuthCard(false);
+    setShowLoginForm(false);
+    setShowRegisterForm(false);
+    setShowGuestForm(true);
   };
 
   const handleBackClick = () => {
@@ -43,6 +55,7 @@ export default function Home() {
     setShowAuthCard(true);
     setShowLoginForm(false);
     setShowRegisterForm(false);
+    setShowGuestForm(false);
   };
 
   const handleLoginSubmit = async (e) => {
@@ -75,6 +88,20 @@ export default function Home() {
     setIsSubmitting(true);
     await register(username, password);
     setIsSubmitting(false);
+  };
+
+  const handleGuestSubmit = (e) => {
+    e.preventDefault();
+    if (!guestName.trim()) {
+      setError('الرجاء إدخال اسمك');
+      return;
+    }
+    
+    setIsSubmitting(true);
+    const success = loginAsGuest(guestName);
+    if (!success) {
+      setIsSubmitting(false);
+    }
   };
 
   // إذا لم يتم تهيئة السياق بعد، نعرض شاشة التحميل
@@ -134,6 +161,14 @@ export default function Home() {
             
             <button onClick={handleRegisterClick} className="btn btn-secondary">
               <FaUserPlus /> إنشاء حساب جديد
+            </button>
+
+            <div className="separator">
+              <span>أو</span>
+            </div>
+            
+            <button onClick={handleGuestClick} className="btn guest-btn">
+              <FaRegSmile /> دخول كضيف
             </button>
           </div>
         </div>
@@ -262,6 +297,53 @@ export default function Home() {
                 )}
               </button>
             </form>
+            <div className="back-to-auth" onClick={handleBackClick}>
+              <FaArrowRight /> العودة
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* نموذج دخول كضيف */}
+      {showGuestForm && (
+        <div className="card fade-in">
+          <div className="card-header">
+            <h1>الدخول كضيف</h1>
+            <p className="subtitle">أدخل اسمك للمشاركة في الجلسات بدون تسجيل</p>
+          </div>
+          <div className="card-body">
+            {error && <div className="alert alert-error"><FaLock /> {error}</div>}
+            <form onSubmit={handleGuestSubmit}>
+              <div className="form-group">
+                <label htmlFor="guest-name">الاسم</label>
+                <div className="input-wrapper">
+                  <FaRegSmile className="input-icon" />
+                  <input
+                    type="text"
+                    id="guest-name"
+                    value={guestName}
+                    onChange={(e) => setGuestName(e.target.value)}
+                    placeholder="أدخل اسمك"
+                    disabled={isSubmitting}
+                  />
+                </div>
+              </div>
+              <button type="submit" className="btn guest-btn" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    <div className="loading"></div>
+                    <span>جار الدخول كضيف...</span>
+                  </>
+                ) : (
+                  <>
+                    <FaRegSmile /> دخول كضيف
+                  </>
+                )}
+              </button>
+            </form>
+            <div className="guest-notice">
+              <p>ملاحظة: كضيف لن تتمكن من استخدام كل ميزات التطبيق، مثل عرض سجل جلساتك.</p>
+            </div>
             <div className="back-to-auth" onClick={handleBackClick}>
               <FaArrowRight /> العودة
             </div>

@@ -10,6 +10,7 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [initialized, setInitialized] = useState(false);
+  const [isGuest, setIsGuest] = useState(false);
   const router = useRouter();
 
   // تحميل المستخدم من التخزين المحلي عند تحميل الصفحة
@@ -25,6 +26,16 @@ export const AuthProvider = ({ children }) => {
 
         const storedUser = localStorage.getItem('user');
         const storedToken = localStorage.getItem('token');
+        const storedGuest = localStorage.getItem('guest');
+
+        if (storedGuest) {
+          // استعادة بيانات المستخدم الضيف
+          setUser(JSON.parse(storedGuest));
+          setIsGuest(true);
+          setLoading(false);
+          setInitialized(true);
+          return;
+        }
 
         if (storedUser && storedToken) {
           setUser(JSON.parse(storedUser));
@@ -63,11 +74,13 @@ export const AuthProvider = ({ children }) => {
       
       const { token, user } = data;
       
+      localStorage.removeItem('guest');
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
       
       setUser(user);
       setToken(token);
+      setIsGuest(false);
       api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       
       router.push('/sessions');
@@ -87,11 +100,13 @@ export const AuthProvider = ({ children }) => {
       
       const { token, user } = data;
       
+      localStorage.removeItem('guest');
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
       
       setUser(user);
       setToken(token);
+      setIsGuest(false);
       api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       
       router.push('/sessions');
@@ -103,13 +118,50 @@ export const AuthProvider = ({ children }) => {
     }
   }, [router]);
 
+  // دالة جديدة للدخول كضيف
+  const loginAsGuest = useCallback((guestName) => {
+    try {
+      if (!guestName || guestName.trim() === '') {
+        setError('الرجاء إدخال اسمك');
+        return false;
+      }
+
+      const guestUser = {
+        id: `guest-${Date.now()}`,
+        username: guestName.trim(),
+        isGuest: true
+      };
+
+      // حفظ بيانات الضيف في التخزين المحلي
+      localStorage.setItem('guest', JSON.stringify(guestUser));
+      
+      // إزالة أي بيانات مستخدم سابقة
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      delete api.defaults.headers.common['Authorization'];
+
+      setUser(guestUser);
+      setToken(null);
+      setIsGuest(true);
+      
+      router.push('/sessions');
+      return true;
+    } catch (err) {
+      console.error('Error logging in as guest:', err);
+      setError('حدث خطأ أثناء الدخول كضيف');
+      return false;
+    }
+  }, [router]);
+
   // دالة محسنة لتسجيل الخروج
   const logout = useCallback(() => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('guest');
     
     setUser(null);
     setToken(null);
+    setIsGuest(false);
     delete api.defaults.headers.common['Authorization'];
     
     router.push('/');
@@ -117,8 +169,8 @@ export const AuthProvider = ({ children }) => {
 
   // تحقق ما إذا كان المستخدم قد قام بتسجيل الدخول
   const isAuthenticated = useCallback(() => {
-    return !!token;
-  }, [token]);
+    return !!token || isGuest;
+  }, [token, isGuest]);
 
   // إعادة تعيين الخطأ
   const clearError = useCallback(() => {
@@ -131,8 +183,10 @@ export const AuthProvider = ({ children }) => {
     loading,
     error,
     initialized,
+    isGuest,
     login,
     register,
+    loginAsGuest,
     logout,
     isAuthenticated,
     setError,
