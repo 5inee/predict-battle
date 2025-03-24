@@ -167,7 +167,11 @@ exports.getSessionByCode = async (req, res) => {
 // Get session by code (public version - no authentication required)
 exports.getSessionByCodePublic = async (req, res) => {
   try {
+    console.log('Public session request for code:', req.params.code);
+    
     const { code } = req.params;
+    const guestId = req.query.guestId;
+    const guestName = req.query.guestName;
     
     // Find session
     const session = await Session.findOne({ code })
@@ -178,12 +182,38 @@ exports.getSessionByCodePublic = async (req, res) => {
       return res.status(404).json({ message: 'Session not found' });
     }
     
-    // Get predictions for this session
-    const predictions = await Prediction.find({ session: session._id })
-      .populate('user', 'username')
-      .sort({ submittedAt: 1 });
+    // إذا تم تقديم معلومات الضيف، نضيفه إلى المشاركين
+    if (guestId && guestName && req.query.guest === 'true') {
+      console.log('Adding guest to session:', guestId, guestName);
+      
+      // تحقق مما إذا كان الضيف موجود بالفعل
+      const isGuestParticipant = session.participants.some(p => 
+        p.guestId && p.guestId === guestId
+      );
+      
+      if (!isGuestParticipant && session.participants.length < session.maxPlayers) {
+        // إضافة الضيف إلى المشاركين
+        session.participants.push({ 
+          guestId: guestId,
+          guestName: guestName,
+          joinedAt: new Date()
+        });
+        
+        await session.save();
+        console.log('Guest added to session participants');
+      }
+    }
     
-    // تقديم نفس الاستجابة مثل المسار المحمي
+    // Get predictions for this session
+    const predictions = await Prediction.find({ 
+      $or: [
+        { session: session._id },
+        { game: session._id }
+      ]
+    })
+    .populate('user', 'username')
+    .sort({ submittedAt: 1 });
+    
     res.status(200).json({
       session,
       predictions

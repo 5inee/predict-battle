@@ -92,17 +92,16 @@ const handleJoinSession = async (e) => {
     setIsJoining(true);
     console.log('Attempting to join session with code:', gameCode);
     
-    if (isRegisteredUser()) {
-      // للمستخدمين المسجلين
-      console.log('Joining as registered user');
-      await api.post(`/sessions/join/${gameCode}`);
-    } else if (isGuest && user) {
-      // للضيوف
-      console.log('Joining as guest:', user.id, user.username);
-      const guestQueryParams = `?guest=true&guestId=${user.id}&guestName=${encodeURIComponent(user.username)}`;
-      await api.post(`/sessions/join/${gameCode}${guestQueryParams}`);
-    }
+    // للمستخدمين الضيوف، نتخطى الانضمام عبر API ونذهب مباشرة إلى صفحة الجلسة
+    if (isGuest && user) {
+      console.log('Guest user - redirecting directly to session page');
+      router.push(`/sessions/${gameCode}`);
+      return;
+    } 
     
+    // للمستخدمين المسجلين، نقوم بالانضمام عبر API أولاً
+    console.log('Registered user - joining via API');
+    await api.post(`/sessions/join/${gameCode}`);
     router.push(`/sessions/${gameCode}`);
   } catch (err) {
     console.error('Error joining session:', err);
