@@ -117,6 +117,170 @@ exports.submitPrediction = async (req, res) => {
         return res.status(500).json({ message: 'Error retrieving predictions' });
       }
     }
+
+    // إضافة هذه الدالة في ملف backend/src/controllers/predictions.js
+
+// Submit prediction (public version - no authentication required)
+exports.submitPredictionPublic = async (req, res) => {
+  try {
+    console.log('Public prediction submission request');
+    const { sessionId, content } = req.body;
+    const isGuest = req.query.guest === 'true';
+    const guestId = req.query.guestId;
+    const guestName = req.query.guestName;
+    
+    // التحقق من وجود البيانات المطلوبة
+    if (!sessionId) {
+      return res.status(400).json({ message: 'Session ID is required' });
+    }
+    
+    if (!content || content.trim() === '') {
+      return res.status(400).json({ message: 'Prediction content is required' });
+    }
+    
+    if (!isGuest || !guestId || !guestName) {
+      return res.status(400).json({ message: 'Guest information is required' });
+    }
+    
+    // التحقق من صحة معرّف الجلسة (MongoDB ObjectId)
+    if (!mongoose.Types.ObjectId.isValid(sessionId)) {
+      return res.status(400).json({ message: 'Invalid session ID format' });
+    }
+    
+    console.log(`Public prediction for session ${sessionId} by guest ${guestId} (${guestName})`);
+    
+    // العثور على الجلسة
+    let session;
+    try {
+      session = await Session.findById(sessionId);
+      
+      if (!session) {
+        return res.status(404).json({ message: 'Session not found' });
+      }
+    } catch (err) {
+      console.error('Error finding session:', err);
+      return res.status(500).json({ message: 'Error retrieving session data' });
+    }
+    
+    // التحقق مما إذا كان الضيف مشاركًا في الجلسة
+    const isParticipant = session.participants.some(p => 
+      p.guestId && p.guestId === guestId
+    );
+    
+    // إذا لم يكن مشاركًا، أضفه إلى المشاركين
+    if (!isParticipant) {
+      if (session.participants.length >= session.maxPlayers) {
+        return res.status(400).json({ message: 'Session is full' });
+      }
+      
+      session.participants.push({ 
+        guestId: guestId, 
+        guestName: guestName,
+        joinedAt: new Date()
+      });
+      
+      await session.save();
+      console.log(`Guest ${guestId} (${guestName}) added to session participants`);
+    }
+    
+    // التحقق مما إذا كان الضيف قد قدم توقعًا بالفعل
+    const existingPrediction = await Prediction.findOne({
+      $or: [
+        { session: sessionId, guestId: guestId },
+        { game: sessionId, guestId: guestId }
+      ]
+    });
+    
+    if (existingPrediction) {
+      // إرجاع جميع التوقعات للجلسة
+      const predictions = await Prediction.find({
+        $or: [
+          { session: sessionId },
+          { game: sessionId }
+        ]
+      })
+      .populate('user', 'username')
+      .sort({ submittedAt: 1 });
+      
+      console.log(`Guest already submitted a prediction, found ${predictions.length} predictions for session`);
+      
+      return res.status(200).json({
+        message: 'You have already submitted a prediction',
+        predictions,
+        prediction: existingPrediction
+      });
+    }
+    
+    // إنشاء توقع جديد
+    const prediction = new Prediction({
+      session: sessionId,
+      game: sessionId,
+      guestId: guestId,
+      guestName: guestName,
+      content: content.trim(),
+      submittedAt: new Date()
+    });
+    
+    // حفظ التوقع
+    await prediction.save();
+    console.log(`New prediction saved for guest ${guestId}`);
+    
+    // الحصول على جميع التوقعات للجلسة
+    const predictions = await Prediction.find({
+      $or: [
+        { session: sessionId },
+        { game: sessionId }
+      ]
+    })
+    .populate('user', 'username')
+    .sort({ submittedAt: 1 });
+    
+    console.log(`Found ${predictions.length} predictions for session`);
+    
+    res.status(201).json({
+      message: 'Prediction submitted successfully',
+      prediction,
+      predictions
+    });
+  } catch (error) {
+    console.error('Error in submitPredictionPublic:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// إضافة هذه الدالة أيضًا
+
+// Get predictions for session (public version - no authentication required)
+exports.getSessionPredictionsPublic = async (req, res) => {
+  try {
+    console.log('Public get session predictions request');
+    const { sessionId } = req.params;
+    
+    // Check if session exists
+    const session = await Session.findById(sessionId);
+    
+    if (!session) {
+      return res.status(404).json({ message: 'Session not found' });
+    }
+    
+    // Get predictions
+    const predictions = await Prediction.find({
+      $or: [
+        { session: sessionId },
+        { game: sessionId }
+      ]
+    })
+      .populate('user', 'username')
+      .sort({ submittedAt: 1 });
+    
+    console.log(`Found ${predictions.length} predictions for session ${sessionId}`);
+    
+    res.status(200).json(predictions);
+  } catch (error) {
+    console.error('Error in getSessionPredictionsPublic:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
     
     // إنشاء توقع جديد
     const prediction = new Prediction({

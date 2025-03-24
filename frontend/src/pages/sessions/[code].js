@@ -89,92 +89,98 @@ useEffect(() => {
 }, [code, initialized, isAuthenticated, user, isRegisteredUser, isGuest]);
 
   // إرسال التوقع
-  const handleSubmitPrediction = async (e) => {
-    e.preventDefault();
-    
-    // التحقق من صحة المدخلات
-    if (!prediction || !prediction.trim()) {
-      setError('الرجاء إدخال توقعك');
-      return;
-    }
-    
-    if (!session || !session._id) {
-      setError('بيانات الجلسة غير متوفرة، يرجى تحديث الصفحة والمحاولة مرة أخرى');
-      return;
-    }
+// في ملف frontend/src/pages/sessions/[code].js
+// تعديل دالة إرسال التوقعات
 
-    try {
-      setSubmitting(true);
-      setError(null); // مسح أي خطأ سابق
-      console.log('Submitting prediction for session:', session._id);
-      
-      let response;
-      
-      if (isRegisteredUser()) {
-        // إرسال التوقع للمستخدمين المسجلين
-        console.log('Submitting as registered user');
-        response = await api.post('/predictions', {
-          sessionId: session._id,
-          content: prediction.trim()
-        });
-      } else if (isGuest && user) {
-        // إرسال التوقع للضيوف
-        console.log('Submitting as guest:', user.id, user.username);
-        const guestQueryParams = `?guest=true&guestId=${user.id}&guestName=${encodeURIComponent(user.username)}`;
-        response = await api.post(`/predictions${guestQueryParams}`, {
-          sessionId: session._id,
-          content: prediction.trim()
-        });
-      }
-      
-      if (response && response.data && response.data.predictions) {
-        console.log('Prediction submitted successfully:', response.data);
-        setPredictions(response.data.predictions);
-      } else {
-        // في حالة نجاح العملية ولكن بدون بيانات التوقعات
-        console.log('Prediction submitted but no predictions returned');
-        // نضيف توقع المستخدم محلياً مؤقتًا
-        const localPrediction = {
-          _id: `local_${Date.now()}`,
-          user: isRegisteredUser() ? { _id: user.id, username: user.username } : null,
-          guestId: isGuest ? user.id : null,
-          guestName: isGuest ? user.username : null,
-          content: prediction.trim(),
-          submittedAt: new Date().toISOString()
-        };
-        
-        setPredictions(prev => [...prev, localPrediction]);
-      }
-      
-      setHasSubmitted(true);
-      setPrediction(''); // مسح مربع الإدخال بعد الإرسال الناجح
-      setSubmitting(false);
-    } catch (err) {
-      console.error('Error submitting prediction:', err);
-      
-      // معالجة مختلف أنواع الخطأ
-      if (err.response) {
-        // الخادم استجاب برمز حالة خارج نطاق 2xx
-        if (err.response.status === 403) {
-          setError('غير مصرّح لك بإرسال توقع في هذه الجلسة');
-        } else if (err.response.status === 404) {
-          setError('الجلسة غير موجودة أو تم حذفها');
-        } else if (err.response.status === 400) {
-          setError(err.response.data.message || 'بيانات غير صحيحة، يرجى التحقق من المدخلات');
-        } else {
-          setError(err.response.data.message || 'حدث خطأ في الخادم، يرجى المحاولة مرة أخرى لاحقًا');
-        }
-      } else if (err.request) {
-        // تم إنشاء الطلب ولكن لم يتم استلام استجابة
-        setError('لا يمكن الاتصال بالخادم، يرجى التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى');
-      } else {
-        // حدث خطأ أثناء إعداد الطلب
-        setError('حدث خطأ أثناء إرسال التوقع، يرجى المحاولة مرة أخرى');
-      }
-      
-      setSubmitting(false);
+// إرسال التوقع
+const handleSubmitPrediction = async (e) => {
+  e.preventDefault();
+  
+  // التحقق من صحة المدخلات
+  if (!prediction || !prediction.trim()) {
+    setError('الرجاء إدخال توقعك');
+    return;
+  }
+  
+  if (!session || !session._id) {
+    setError('بيانات الجلسة غير متوفرة، يرجى تحديث الصفحة والمحاولة مرة أخرى');
+    return;
+  }
+
+  try {
+    setSubmitting(true);
+    setError(null); // مسح أي خطأ سابق
+    console.log('Submitting prediction for session:', session._id);
+    
+    let response;
+    
+    if (isRegisteredUser()) {
+      // إرسال التوقع للمستخدمين المسجلين
+      console.log('Submitting as registered user');
+      response = await api.post('/predictions', {
+        sessionId: session._id,
+        content: prediction.trim()
+      });
+    } else if (isGuest && user) {
+      // إرسال التوقع للضيوف - استخدام المسار العام
+      console.log('Submitting as guest:', user.id, user.username);
+      const guestQueryParams = `?guest=true&guestId=${user.id}&guestName=${encodeURIComponent(user.username)}`;
+      response = await api.post(`/predictions/public${guestQueryParams}`, {
+        sessionId: session._id,
+        content: prediction.trim()
+      });
     }
-  };
+    
+    if (response && response.data && response.data.predictions) {
+      console.log('Prediction submitted successfully:', response.data);
+      setPredictions(response.data.predictions);
+    } else {
+      // في حالة نجاح العملية ولكن بدون بيانات التوقعات
+      console.log('Prediction submitted but no predictions returned');
+      // نضيف توقع المستخدم محلياً مؤقتًا
+      const localPrediction = {
+        _id: `local_${Date.now()}`,
+        user: isRegisteredUser() ? { _id: user.id, username: user.username } : null,
+        guestId: isGuest ? user.id : null,
+        guestName: isGuest ? user.username : null,
+        content: prediction.trim(),
+        submittedAt: new Date().toISOString()
+      };
+      
+      setPredictions(prev => [...prev, localPrediction]);
+    }
+    
+    setHasSubmitted(true);
+    setPrediction(''); // مسح مربع الإدخال بعد الإرسال الناجح
+    setSubmitting(false);
+  } catch (err) {
+    console.error('Error submitting prediction:', err);
+    
+    // معالجة مختلف أنواع الخطأ
+    if (err.response) {
+      // الخادم استجاب برمز حالة خارج نطاق 2xx
+      if (err.response.status === 403) {
+        setError('غير مصرّح لك بإرسال توقع في هذه الجلسة');
+      } else if (err.response.status === 404) {
+        setError('الجلسة غير موجودة أو تم حذفها');
+      } else if (err.response.status === 400) {
+        setError(err.response.data.message || 'بيانات غير صحيحة، يرجى التحقق من المدخلات');
+      } else if (err.response.status === 401) {
+        setError('غير مصرح لك بالوصول إلى هذه الميزة، يرجى تسجيل الدخول مرة أخرى');
+      } else {
+        setError(err.response.data.message || 'حدث خطأ في الخادم، يرجى المحاولة مرة أخرى لاحقًا');
+      }
+    } else if (err.request) {
+      // تم إنشاء الطلب ولكن لم يتم استلام استجابة
+      setError('لا يمكن الاتصال بالخادم، يرجى التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى');
+    } else {
+      // حدث خطأ أثناء إعداد الطلب
+      setError('حدث خطأ أثناء إرسال التوقع، يرجى المحاولة مرة أخرى');
+    }
+    
+    setSubmitting(false);
+  }
+};
 
   // تنسيق التاريخ والوقت
   const formatDateTime = (dateString) => {

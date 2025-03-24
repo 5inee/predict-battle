@@ -3,13 +3,13 @@ const router = express.Router();
 const predictionController = require('../controllers/predictions');
 const authMiddleware = require('../middleware/auth');
 
-// Apply auth middleware to all routes
+// مسارات عامة لا تحتاج إلى مصادقة
+router.post('/public', predictionController.submitPredictionPublic);
+router.get('/session/:sessionId/public', predictionController.getSessionPredictionsPublic);
+
+// المسارات التي تحتاج إلى مصادقة
 router.use(authMiddleware);
-
-// Submit prediction
 router.post('/', predictionController.submitPrediction);
-
-// Get predictions for session
 router.get('/session/:sessionId', predictionController.getSessionPredictions);
 
 module.exports = router;
