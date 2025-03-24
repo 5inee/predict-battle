@@ -33,7 +33,7 @@ export default function Sessions() {
   const [isJoining, setIsJoining] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   
-  const { isAuthenticated, isRegisteredUser, initialized, isGuest } = useAuth();
+  const { isAuthenticated, isRegisteredUser, initialized, isGuest, user } = useAuth();
   const router = useRouter();
 
   // التحقق من تسجيل الدخول
@@ -74,41 +74,34 @@ export default function Sessions() {
   };
 
   // الانضمام إلى جلسة
-// في ملف sessions/index.js
-// نعدل دالة handleJoinSession لتناسب المستخدمين الضيوف
-
-// الانضمام إلى جلسة
-// في ملف frontend/src/pages/sessions/index.js
-
-// الانضمام إلى جلسة
-const handleJoinSession = async (e) => {
-  e.preventDefault();
-  if (!gameCode.trim()) {
-    setError('الرجاء إدخال كود اللعبة');
-    return;
-  }
-
-  try {
-    setIsJoining(true);
-    console.log('Attempting to join session with code:', gameCode);
-    
-    // للمستخدمين الضيوف، نتخطى الانضمام عبر API ونذهب مباشرة إلى صفحة الجلسة
-    if (isGuest && user) {
-      console.log('Guest user - redirecting directly to session page');
-      router.push(`/sessions/${gameCode}`);
+  const handleJoinSession = async (e) => {
+    e.preventDefault();
+    if (!gameCode.trim()) {
+      setError('الرجاء إدخال كود اللعبة');
       return;
-    } 
-    
-    // للمستخدمين المسجلين، نقوم بالانضمام عبر API أولاً
-    console.log('Registered user - joining via API');
-    await api.post(`/sessions/join/${gameCode}`);
-    router.push(`/sessions/${gameCode}`);
-  } catch (err) {
-    console.error('Error joining session:', err);
-    setError(err.response?.data?.message || 'فشل في الانضمام إلى الجلسة، تأكد من صحة الكود والمحاولة مرة أخرى.');
-    setIsJoining(false);
-  }
-};
+    }
+
+    try {
+      setIsJoining(true);
+      console.log('Attempting to join session with code:', gameCode);
+      
+      // للمستخدمين الضيوف، نتخطى الانضمام عبر API ونذهب مباشرة إلى صفحة الجلسة
+      if (isGuest) {
+        console.log('Guest user - redirecting directly to session page');
+        router.push(`/sessions/${gameCode}`);
+        return;
+      }
+      
+      // للمستخدمين المسجلين، نقوم بالانضمام عبر API أولاً
+      console.log('Registered user - joining via API');
+      await api.post(`/sessions/join/${gameCode}`);
+      router.push(`/sessions/${gameCode}`);
+    } catch (err) {
+      console.error('Error joining session:', err);
+      setError(err.response?.data?.message || 'فشل في الانضمام إلى الجلسة، تأكد من صحة الكود والمحاولة مرة أخرى.');
+      setIsJoining(false);
+    }
+  };
 
   // إنشاء جلسة جديدة
   const handleCreateSession = async (e) => {

@@ -165,11 +165,14 @@ exports.getSessionByCode = async (req, res) => {
 };
 
 // Get session by code (public version - no authentication required)
+// إضافة هذه الدالة في ملف backend/src/controllers/sessions.js
+
+// Get session by code (public version - no authentication required)
 exports.getSessionByCodePublic = async (req, res) => {
   try {
     console.log('Public session request for code:', req.params.code);
-    
     const { code } = req.params;
+    const isGuest = req.query.guest === 'true';
     const guestId = req.query.guestId;
     const guestName = req.query.guestName;
     
@@ -179,33 +182,39 @@ exports.getSessionByCodePublic = async (req, res) => {
       .populate('creator', 'username');
     
     if (!session) {
+      console.log('Session not found:', code);
       return res.status(404).json({ message: 'Session not found' });
     }
     
-    // إذا تم تقديم معلومات الضيف، نضيفه إلى المشاركين
-    if (guestId && guestName && req.query.guest === 'true') {
-      console.log('Adding guest to session:', guestId, guestName);
+    console.log('Session found:', session.code, session.question);
+    
+    // If guest info provided, add guest to participants
+    if (isGuest && guestId && guestName) {
+      console.log('Guest info provided:', guestId, guestName);
       
-      // تحقق مما إذا كان الضيف موجود بالفعل
-      const isGuestParticipant = session.participants.some(p => 
+      // Check if guest already a participant
+      const isParticipant = session.participants.some(p => 
         p.guestId && p.guestId === guestId
       );
       
-      if (!isGuestParticipant && session.participants.length < session.maxPlayers) {
-        // إضافة الضيف إلى المشاركين
-        session.participants.push({ 
+      if (!isParticipant && session.participants.length < session.maxPlayers) {
+        console.log('Adding guest to participants');
+        session.participants.push({
           guestId: guestId,
           guestName: guestName,
           joinedAt: new Date()
         });
         
         await session.save();
-        console.log('Guest added to session participants');
+      } else if (isParticipant) {
+        console.log('Guest already a participant');
+      } else {
+        console.log('Session is full, cannot add guest');
       }
     }
     
     // Get predictions for this session
-    const predictions = await Prediction.find({ 
+    const predictions = await Prediction.find({
       $or: [
         { session: session._id },
         { game: session._id }
@@ -214,12 +223,15 @@ exports.getSessionByCodePublic = async (req, res) => {
     .populate('user', 'username')
     .sort({ submittedAt: 1 });
     
+    console.log(`Found ${predictions.length} predictions for session`);
+    
+    // Return session and predictions
     res.status(200).json({
       session,
       predictions
     });
   } catch (error) {
-    console.error('Error getting session by code (public):', error);
+    console.error('Error in getSessionByCodePublic:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
