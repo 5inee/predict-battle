@@ -90,13 +90,17 @@ const handleJoinSession = async (e) => {
 
   try {
     setIsJoining(true);
+    console.log('Attempting to join session with code:', gameCode);
     
     if (isRegisteredUser()) {
       // للمستخدمين المسجلين
-      await apiService.sessions.join(gameCode);
+      console.log('Joining as registered user');
+      await api.post(`/sessions/join/${gameCode}`);
     } else if (isGuest && user) {
       // للضيوف
-      await apiService.sessions.join(gameCode, true, user.id, user.username);
+      console.log('Joining as guest:', user.id, user.username);
+      const guestQueryParams = `?guest=true&guestId=${user.id}&guestName=${encodeURIComponent(user.username)}`;
+      await api.post(`/sessions/join/${gameCode}${guestQueryParams}`);
     }
     
     router.push(`/sessions/${gameCode}`);

@@ -44,16 +44,20 @@ exports.createSession = async (req, res) => {
     
     res.status(201).json(session);
   } catch (error) {
-    console.error(error);
+    console.error('Error creating session:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
 
 // Join session
-// في ملف backend/src/controllers/sessions.js
 exports.joinSession = async (req, res) => {
   try {
     const { code } = req.params;
+    const isGuest = req.query.guest === 'true';
+    const guestId = req.query.guestId;
+    const guestName = req.query.guestName;
+    
+    console.log('Join session request:', { code, isGuest, guestId, guestName });
     
     // Find session
     const session = await Session.findOne({ code }).populate('participants.user', 'username');
@@ -62,26 +66,54 @@ exports.joinSession = async (req, res) => {
       return res.status(404).json({ message: 'Session not found' });
     }
     
-    // Check if user already joined
-    const isParticipant = session.participants.some(p => p.user._id.toString() === req.user._id.toString());
-    
-    if (isParticipant) {
-      // إذا كان المستخدم مشاركًا بالفعل، أرسل له الجلسة مباشرةً دون رسالة خطأ
-      return res.status(200).json(session);
+    // للمستخدمين العاديين
+    if (!isGuest) {
+      // Check if user already joined
+      const isParticipant = session.participants.some(p => p.user && p.user._id.toString() === req.user._id.toString());
+      
+      if (isParticipant) {
+        // إذا كان المستخدم مشاركًا بالفعل، أرسل له الجلسة مباشرةً دون رسالة خطأ
+        return res.status(200).json(session);
+      }
+      
+      // Check if session is full
+      if (session.participants.length >= session.maxPlayers) {
+        return res.status(400).json({ message: 'Session is full' });
+      }
+      
+      // إضافة المستخدم كمشارك جديد
+      session.participants.push({ user: req.user._id });
+    } 
+    // للضيوف
+    else if (isGuest && guestId && guestName) {
+      // التحقق مما إذا كان الضيف قد انضم بالفعل (باستخدام المعرف)
+      const isGuestParticipant = session.participants.some(p => 
+        p.guestId && p.guestId === guestId
+      );
+      
+      if (isGuestParticipant) {
+        return res.status(200).json(session);
+      }
+      
+      // التحقق مما إذا كانت الجلسة ممتلئة
+      if (session.participants.length >= session.maxPlayers) {
+        return res.status(400).json({ message: 'Session is full' });
+      }
+      
+      // إضافة الضيف كمشارك جديد
+      session.participants.push({ 
+        guestId: guestId,
+        guestName: guestName,
+        joinedAt: new Date()
+      });
+    } else {
+      return res.status(400).json({ message: 'Invalid guest information' });
     }
     
-    // Check if session is full (فقط إذا لم يكن المستخدم مشاركًا بالفعل)
-    if (session.participants.length >= session.maxPlayers) {
-      return res.status(400).json({ message: 'Session is full' });
-    }
-    
-    // إضافة المستخدم كمشارك جديد
-    session.participants.push({ user: req.user._id });
     await session.save();
-    
     res.status(200).json(session);
   } catch (error) {
-    console.error(error);
+    console.error('Error joining session:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -98,40 +130,7 @@ exports.getUserSessions = async (req, res) => {
     
     res.status(200).json(sessions);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
-  }
-};
-
-// في ملف backend/src/controllers/sessions.js
-// نضيف دالة جديدة للوصول العام إلى تفاصيل الجلسة (بدون مصادقة)
-
-// Get session by code (public version - no authentication required)
-exports.getSessionByCodePublic = async (req, res) => {
-  try {
-    const { code } = req.params;
-    
-    // Find session
-    const session = await Session.findOne({ code })
-      .populate('participants.user', 'username')
-      .populate('creator', 'username');
-    
-    if (!session) {
-      return res.status(404).json({ message: 'Session not found' });
-    }
-    
-    // Get predictions for this session
-    const predictions = await Prediction.find({ session: session._id })
-      .populate('user', 'username')
-      .sort({ submittedAt: 1 });
-    
-    // تقديم نفس الاستجابة مثل المسار المحمي
-    res.status(200).json({
-      session,
-      predictions
-    });
-  } catch (error) {
-    console.error(error);
+    console.error('Error getting user sessions:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -160,7 +159,37 @@ exports.getSessionByCode = async (req, res) => {
       predictions
     });
   } catch (error) {
-    console.error(error);
+    console.error('Error getting session by code:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Get session by code (public version - no authentication required)
+exports.getSessionByCodePublic = async (req, res) => {
+  try {
+    const { code } = req.params;
+    
+    // Find session
+    const session = await Session.findOne({ code })
+      .populate('participants.user', 'username')
+      .populate('creator', 'username');
+    
+    if (!session) {
+      return res.status(404).json({ message: 'Session not found' });
+    }
+    
+    // Get predictions for this session
+    const predictions = await Prediction.find({ session: session._id })
+      .populate('user', 'username')
+      .sort({ submittedAt: 1 });
+    
+    // تقديم نفس الاستجابة مثل المسار المحمي
+    res.status(200).json({
+      session,
+      predictions
+    });
+  } catch (error) {
+    console.error('Error getting session by code (public):', error);
     res.status(500).json({ message: 'Server error' });
   }
 };

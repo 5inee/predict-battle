@@ -188,13 +188,8 @@ api.interceptors.request.use(
         config.headers.Authorization = `Bearer ${token}`;
       }
       
-      // إضافة معلومات الضيف إلى عنوان الصفحة إذا كان متاحًا
-      const guest = localStorage.getItem('guest');
-      if (guest && !config.url.includes('guest=')) {
-        const guestData = JSON.parse(guest);
-        const separator = config.url.includes('?') ? '&' : '?';
-        config.url += `${separator}guest=true&guestId=${guestData.id}&guestName=${encodeURIComponent(guestData.username)}`;
-      }
+      // ملاحظة مهمة: لا نضيف معلومات الضيف تلقائياً لكل الطلبات
+      // لأن ذلك قد يسبب مشاكل مع المسارات التي لا تدعم المعلمات
     }
     return config;
   },

@@ -38,57 +38,65 @@ export default function SessionDetail() {
   }, [initialized, isAuthenticated, router]);
 
   // جلب تفاصيل الجلسة والتوقعات
-// في ملف sessions/[code].js
-// نعدل function fetchSessionDetails لتعمل مع المستخدمين الضيوف
-
-useEffect(() => {
-  const fetchSessionDetails = async () => {
-    if (!code || !initialized || !isAuthenticated()) {
-      return;
-    }
-    
-    try {
-      setLoading(true);
-      
-      let response;
-      if (isRegisteredUser()) {
-        // المستخدمين المسجلين
-        response = await apiService.sessions.getByCode(code);
-      } else if (isGuest && user) {
-        // الضيوف
-        response = await apiService.sessions.getByCode(code, true, user.id, user.username);
+  useEffect(() => {
+    const fetchSessionDetails = async () => {
+      if (!code || !initialized || !isAuthenticated()) {
+        return;
       }
       
-      setSession(response.session);
-      setPredictions(response.predictions);
-      
-      // التحقق مما إذا كان المستخدم قد قدم توقعًا
-      if (user) {
+      try {
+        setLoading(true);
+        console.log('Fetching session details for code:', code);
+        
+        let response;
         if (isRegisteredUser()) {
           // المستخدمين المسجلين
-          if (response.predictions.some(p => p.user && p.user._id === user.id)) {
-            setHasSubmitted(true);
-          }
-        } else if (isGuest) {
+          console.log('Fetching as registered user');
+          response = await api.get(`/sessions/${code}`);
+        } else if (isGuest && user) {
           // الضيوف
-          if (response.predictions.some(p => p.guestId === user.id)) {
-            setHasSubmitted(true);
-          }
+          console.log('Fetching as guest:', user.id, user.username);
+          // استخدام المسار العام للضيوف
+          response = await api.get(`/sessions/${code}/public`);
         }
+        
+        if (response && response.data) {
+          console.log('Session data received:', response.data);
+          setSession(response.data.session);
+          setPredictions(response.data.predictions || []);
+          
+          // التحقق مما إذا كان المستخدم قد قدم توقعًا
+          if (user) {
+            if (isRegisteredUser() && response.data.predictions) {
+              // المستخدمين المسجلين
+              if (response.data.predictions.some(p => p.user && p.user._id === user.id)) {
+                setHasSubmitted(true);
+              }
+            } else if (isGuest && response.data.predictions) {
+              // الضيوف
+              if (response.data.predictions.some(p => p.guestId === user.id)) {
+                setHasSubmitted(true);
+              }
+            }
+          }
+        } else {
+          console.error('No data received from API');
+          setError('فشل في تحميل تفاصيل الجلسة، لم يتم استلام بيانات.');
+        }
+        
+        setLoading(false);
+      } catch (err) {
+        console.error('Error fetching session details:', err);
+        setError('فشل في تحميل تفاصيل الجلسة، يرجى المحاولة مرة أخرى.');
+        setLoading(false);
       }
-      
-      setLoading(false);
-    } catch (err) {
-      console.error('Error fetching session details:', err);
-      setError('فشل في تحميل تفاصيل الجلسة، يرجى المحاولة مرة أخرى.');
-      setLoading(false);
-    }
-  };
+    };
 
-  if (initialized && isAuthenticated()) {
-    fetchSessionDetails();
-  }
-}, [code, initialized, isAuthenticated, user, isRegisteredUser, isGuest]);
+    if (initialized && isAuthenticated()) {
+      fetchSessionDetails();
+    }
+  }, [code, initialized, isAuthenticated, user, isRegisteredUser, isGuest]);
+
   // إرسال التوقع
   const handleSubmitPrediction = async (e) => {
     e.preventDefault();
@@ -103,29 +111,48 @@ useEffect(() => {
       setError('بيانات الجلسة غير متوفرة، يرجى تحديث الصفحة والمحاولة مرة أخرى');
       return;
     }
-  
+
     try {
       setSubmitting(true);
       setError(null); // مسح أي خطأ سابق
+      console.log('Submitting prediction for session:', session._id);
       
       let response;
       
       if (isRegisteredUser()) {
         // إرسال التوقع للمستخدمين المسجلين
-        response = await apiService.predictions.submit(session._id, prediction.trim());
+        console.log('Submitting as registered user');
+        response = await api.post('/predictions', {
+          sessionId: session._id,
+          content: prediction.trim()
+        });
       } else if (isGuest && user) {
         // إرسال التوقع للضيوف
-        response = await apiService.predictions.submit(
-          session._id, 
-          prediction.trim(), 
-          true, 
-          user.id, 
-          user.username
-        );
+        console.log('Submitting as guest:', user.id, user.username);
+        const guestQueryParams = `?guest=true&guestId=${user.id}&guestName=${encodeURIComponent(user.username)}`;
+        response = await api.post(`/predictions${guestQueryParams}`, {
+          sessionId: session._id,
+          content: prediction.trim()
+        });
       }
       
-      if (response && response.predictions) {
-        setPredictions(response.predictions);
+      if (response && response.data && response.data.predictions) {
+        console.log('Prediction submitted successfully:', response.data);
+        setPredictions(response.data.predictions);
+      } else {
+        // في حالة نجاح العملية ولكن بدون بيانات التوقعات
+        console.log('Prediction submitted but no predictions returned');
+        // نضيف توقع المستخدم محلياً مؤقتًا
+        const localPrediction = {
+          _id: `local_${Date.now()}`,
+          user: isRegisteredUser() ? { _id: user.id, username: user.username } : null,
+          guestId: isGuest ? user.id : null,
+          guestName: isGuest ? user.username : null,
+          content: prediction.trim(),
+          submittedAt: new Date().toISOString()
+        };
+        
+        setPredictions(prev => [...prev, localPrediction]);
       }
       
       setHasSubmitted(true);
@@ -340,11 +367,6 @@ useEffect(() => {
           {hasSubmitted && (
             <div className="alert alert-success">
               <FaCheck /> تم إرسال توقعك بنجاح!
-              {isGuest && (
-                <span style={{ marginRight: '8px', fontSize: '13px' }}>
-                  (كضيف، توقعك مرئي فقط لك في هذه الجلسة)
-                </span>
-              )}
             </div>
           )}
           
@@ -393,13 +415,6 @@ useEffect(() => {
                     </>
                   )}
                 </button>
-                
-                {isGuest && (
-                  <div className="guest-notice">
-                    <FaUserSecret style={{ marginLeft: '5px' }} />
-                    ملاحظة: كضيف، توقعك سيكون مرئي لك فقط في هذه الجلسة.
-                  </div>
-                )}
               </form>
             </div>
           )}
@@ -415,22 +430,22 @@ useEffect(() => {
                 {predictions.map((p) => (
                   <div
                     key={p._id}
-                    className={`prediction-card ${p.user._id === user.id ? 'mine' : ''}`}
+                    className={`prediction-card ${(p.user && p.user._id === user.id) || p.guestId === user.id ? 'mine' : ''}`}
                   >
                     <div className="prediction-header">
                       <div
                         className="user-avatar"
                         style={{
-                          backgroundColor: getRandomColor(p.user._id)
+                          backgroundColor: getRandomColor(p.user ? p.user._id : p.guestId || 'unknown')
                         }}
                       >
-                        {getInitial(p.user.username)}
+                        {getInitial(p.user ? p.user.username : p.guestName)}
                       </div>
                       <div className="user-info">
                         <div className="username">
-                          {p.user.username}
-                          {isUserGuest(p.user._id) && <span className="guest-tag">ضيف</span>}
-                          {p.user._id === user.id ? ' (أنت)' : ''}
+                          {p.user ? p.user.username : p.guestName}
+                          {(p.guestId || isUserGuest(p.user?._id)) && <span className="guest-tag">ضيف</span>}
+                          {(p.user && p.user._id === user.id) || p.guestId === user.id ? ' (أنت)' : ''}
                         </div>
                         <div className="timestamp">
                           <FaClock style={{ fontSize: '11px' }} />
@@ -444,13 +459,6 @@ useEffect(() => {
                   </div>
                 ))}
               </div>
-              
-              {isGuest && (
-                <div className="guest-notice" style={{ marginTop: '20px' }}>
-                  <FaUserSecret style={{ marginLeft: '5px' }} />
-                  ملاحظة للضيوف: يمكن أن تكون هناك توقعات أخرى غير مرئية لك. قم بإنشاء حساب للحصول على التجربة الكاملة.
-                </div>
-              )}
             </div>
           )}
           
