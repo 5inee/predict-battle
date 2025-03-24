@@ -127,40 +127,40 @@ export const AuthProvider = ({ children }) => {
   }, [router]);
 
   // تسجيل الدخول كضيف
-  const loginAsGuest = useCallback(async (guestName) => {
-    if (!guestName || guestName.trim() === '') {
-      setError('الرجاء إدخال اسمك');
-      return false;
-    }
+// في ملف frontend/src/context/AuthContext.js - تعديل دالة loginAsGuest
+
+// تسجيل الدخول كضيف
+const loginAsGuest = useCallback((guestName) => {
+  if (!guestName || guestName.trim() === '') {
+    setError('الرجاء إدخال اسمك');
+    return false;
+  }
+  
+  try {
+    // إنشاء كائن المستخدم الضيف
+    const guestUser = {
+      id: `guest_${Date.now()}`,
+      username: guestName.trim()
+    };
     
-    try {
-      // إنشاء كائن المستخدم الضيف
-      const guestUser = {
-        id: `guest_${Date.now()}`,
-        username: guestName.trim()
-      };
-      
-      // تسجيل الضيف في الخادم
-      await apiService.guests.registerGuest(guestUser.id, guestUser.username);
-      
-      // تخزين بيانات الضيف
-      localStorage.setItem('guest', JSON.stringify(guestUser));
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      
-      setUser(guestUser);
-      setToken(null);
-      setIsGuest(true);
-      delete api.defaults.headers.common['Authorization'];
-      
-      router.push('/sessions');
-      return true;
-    } catch (err) {
-      console.error('Error logging in as guest:', err);
-      setError('حدث خطأ أثناء تسجيل الدخول كضيف. يرجى المحاولة مرة أخرى.');
-      return false;
-    }
-  }, [router]);
+    // تخزين بيانات الضيف محلياً فقط بدون محاولة التسجيل في الخادم
+    localStorage.setItem('guest', JSON.stringify(guestUser));
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    
+    setUser(guestUser);
+    setToken(null);
+    setIsGuest(true);
+    delete api.defaults.headers.common['Authorization'];
+    
+    router.push('/sessions');
+    return true;
+  } catch (err) {
+    console.error('Error in guest login:', err);
+    setError('حدث خطأ أثناء تسجيل الدخول كضيف. يرجى المحاولة مرة أخرى.');
+    return false;
+  }
+}, [router, setError]);
 
   // دالة محسنة لتسجيل الخروج
   const logout = useCallback(() => {
