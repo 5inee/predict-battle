@@ -50,6 +50,27 @@ const apiService = {
     }
   },
 
+  // طلبات الضيوف
+  guests: {
+    registerGuest: async (guestId, username) => {
+      try {
+        const response = await api.post('/guests/register', { guestId, username });
+        return response.data;
+      } catch (error) {
+        throw error;
+      }
+    },
+    
+    getGuestById: async (guestId) => {
+      try {
+        const response = await api.get(`/guests/${guestId}`);
+        return response.data;
+      } catch (error) {
+        throw error;
+      }
+    }
+  },
+
   // طلبات الجلسات
   sessions: {
     create: async (sessionData) => {
@@ -61,9 +82,16 @@ const apiService = {
       }
     },
     
-    join: async (code) => {
+    join: async (code, isGuest = false, guestId = null, guestName = null) => {
       try {
-        const response = await api.post(`/sessions/join/${code}`);
+        let url = `/sessions/join/${code}`;
+        
+        // إضافة معلومات الضيف إذا كان متاحًا
+        if (isGuest && guestId && guestName) {
+          url += `?guest=true&guestId=${guestId}&guestName=${encodeURIComponent(guestName)}`;
+        }
+        
+        const response = await api.post(url);
         return response.data;
       } catch (error) {
         throw error;
@@ -79,9 +107,16 @@ const apiService = {
       }
     },
     
-    getByCode: async (code) => {
+    getByCode: async (code, isGuest = false, guestId = null, guestName = null) => {
       try {
-        const response = await api.get(`/sessions/${code}`);
+        let url = `/sessions/${code}`;
+        
+        // للضيوف، استخدم المسار العام
+        if (isGuest && guestId && guestName) {
+          url += `?guest=true&guestId=${guestId}&guestName=${encodeURIComponent(guestName)}`;
+        }
+        
+        const response = await api.get(url);
         return response.data;
       } catch (error) {
         throw error;
@@ -91,7 +126,7 @@ const apiService = {
 
   // طلبات التوقعات
   predictions: {
-    submit: async (sessionId, content) => {
+    submit: async (sessionId, content, isGuest = false, guestId = null, guestName = null) => {
       try {
         // التحقق من المدخلات قبل إرسال الطلب
         if (!sessionId) {
@@ -101,10 +136,18 @@ const apiService = {
           throw new Error('محتوى التوقع مطلوب');
         }
         
-        const response = await api.post('/predictions', { 
+        let url = '/predictions';
+        
+        // إضافة معلومات الضيف إذا كان متاحًا
+        if (isGuest && guestId && guestName) {
+          url += `?guest=true&guestId=${guestId}&guestName=${encodeURIComponent(guestName)}`;
+        }
+        
+        const response = await api.post(url, { 
           sessionId, 
           content: content.trim() 
         });
+        
         return response.data;
       } catch (error) {
         // رمي الخطأ مع معلومات إضافية
@@ -113,9 +156,16 @@ const apiService = {
       }
     },
     
-    getSessionPredictions: async (sessionId) => {
+    getSessionPredictions: async (sessionId, isGuest = false, guestId = null, guestName = null) => {
       try {
-        const response = await api.get(`/predictions/session/${sessionId}`);
+        let url = `/predictions/session/${sessionId}`;
+        
+        // إضافة معلومات الضيف إذا كان متاحًا
+        if (isGuest && guestId && guestName) {
+          url += `?guest=true&guestId=${guestId}&guestName=${encodeURIComponent(guestName)}`;
+        }
+        
+        const response = await api.get(url);
         return response.data;
       } catch (error) {
         throw error;
@@ -136,6 +186,14 @@ api.interceptors.request.use(
       const token = localStorage.getItem('token');
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
+      }
+      
+      // إضافة معلومات الضيف إلى عنوان الصفحة إذا كان متاحًا
+      const guest = localStorage.getItem('guest');
+      if (guest && !config.url.includes('guest=')) {
+        const guestData = JSON.parse(guest);
+        const separator = config.url.includes('?') ? '&' : '?';
+        config.url += `${separator}guest=true&guestId=${guestData.id}&guestName=${encodeURIComponent(guestData.username)}`;
       }
     }
     return config;
@@ -179,17 +237,19 @@ api.interceptors.response.use(
           error.response?.data?.message?.includes('token') ||
           error.response?.data?.message?.includes('session')) {
         
-        // مسح بيانات المصادقة من التخزين المحلي
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        
-        // إعادة تحميل الصفحة أو توجيه المستخدم إلى صفحة تسجيل الدخول
-        if (window.location.pathname !== '/') {
-          console.log('Session expired, redirecting to login page...');
-          // تأخير قصير قبل إعادة التوجيه لإتاحة الوقت لإنهاء العمليات الحالية
-          setTimeout(() => {
-            window.location.href = '/';
-          }, 100);
+        // مسح بيانات المصادقة من التخزين المحلي (فقط للمستخدمين المسجلين)
+        if (localStorage.getItem('token')) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          
+          // إعادة تحميل الصفحة أو توجيه المستخدم إلى صفحة تسجيل الدخول
+          if (window.location.pathname !== '/') {
+            console.log('Session expired, redirecting to login page...');
+            // تأخير قصير قبل إعادة التوجيه لإتاحة الوقت لإنهاء العمليات الحالية
+            setTimeout(() => {
+              window.location.href = '/';
+            }, 100);
+          }
         }
       }
     }

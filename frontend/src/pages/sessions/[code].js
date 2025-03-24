@@ -50,51 +50,30 @@ useEffect(() => {
     try {
       setLoading(true);
       
-      // في حالة المستخدم المسجل، نستخدم API المعتاد مع التوكن
+      let response;
       if (isRegisteredUser()) {
-        const response = await api.get(`/sessions/${code}`);
-        setSession(response.data.session);
-        setPredictions(response.data.predictions);
-        
-        // التحقق مما إذا كان المستخدم قد قدم توقعًا
-        if (user && response.data.predictions.some(p => p.user._id === user.id)) {
-          setHasSubmitted(true);
-        }
-      } 
-      // في حالة الضيف، نستخدم طلبًا مباشرًا إلى نقطة نهاية عامة بدون حاجة للمصادقة
-      else if (isGuest) {
-        // يمكننا استخدام api بدون token لكن علينا معالجة الخطأ
-        try {
-          // سنحاول الحصول على بيانات الجلسة بدون مصادقة
-          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/sessions/${code}/public`, {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json'
-            }
-          });
-          
-          if (!response.ok) {
-            throw new Error('فشل في جلب تفاصيل الجلسة');
+        // المستخدمين المسجلين
+        response = await apiService.sessions.getByCode(code);
+      } else if (isGuest && user) {
+        // الضيوف
+        response = await apiService.sessions.getByCode(code, true, user.id, user.username);
+      }
+      
+      setSession(response.session);
+      setPredictions(response.predictions);
+      
+      // التحقق مما إذا كان المستخدم قد قدم توقعًا
+      if (user) {
+        if (isRegisteredUser()) {
+          // المستخدمين المسجلين
+          if (response.predictions.some(p => p.user && p.user._id === user.id)) {
+            setHasSubmitted(true);
           }
-          
-          const data = await response.json();
-          setSession(data.session);
-          setPredictions(data.predictions || []);
-        } catch (guestError) {
-          console.error('Error fetching session as guest:', guestError);
-          // إذا فشل الطلب كضيف، سنستخدم طريقة بديلة
-          // إنشاء بيانات جلسة افتراضية باستخدام الكود
-          const dummySession = {
-            _id: `guest_session_${code}`,
-            code: code,
-            question: "تم الانضمام كضيف",
-            maxPlayers: 10,
-            participants: [{ user: { _id: user.id, username: user.username } }],
-            status: 'waiting'
-          };
-          
-          setSession(dummySession);
-          setPredictions([]);
+        } else if (isGuest) {
+          // الضيوف
+          if (response.predictions.some(p => p.guestId === user.id)) {
+            setHasSubmitted(true);
+          }
         }
       }
       
@@ -110,7 +89,6 @@ useEffect(() => {
     fetchSessionDetails();
   }
 }, [code, initialized, isAuthenticated, user, isRegisteredUser, isGuest]);
-
   // إرسال التوقع
   const handleSubmitPrediction = async (e) => {
     e.preventDefault();
@@ -125,35 +103,29 @@ useEffect(() => {
       setError('بيانات الجلسة غير متوفرة، يرجى تحديث الصفحة والمحاولة مرة أخرى');
       return;
     }
-
+  
     try {
       setSubmitting(true);
       setError(null); // مسح أي خطأ سابق
       
+      let response;
+      
       if (isRegisteredUser()) {
         // إرسال التوقع للمستخدمين المسجلين
-        const response = await api.post('/predictions', {
-          sessionId: session._id,
-          content: prediction.trim()
-        });
-        
-        if (response.data.predictions) {
-          setPredictions(response.data.predictions);
-        }
-      } else if (isGuest) {
-        // للضيوف، نقوم بإنشاء توقع محلي فقط
-        const guestPrediction = {
-          _id: `guest_prediction_${Date.now()}`,
-          user: {
-            _id: user.id,
-            username: user.username
-          },
-          content: prediction.trim(),
-          submittedAt: new Date().toISOString()
-        };
-        
-        // إضافة التوقع إلى القائمة المحلية
-        setPredictions([...predictions, guestPrediction]);
+        response = await apiService.predictions.submit(session._id, prediction.trim());
+      } else if (isGuest && user) {
+        // إرسال التوقع للضيوف
+        response = await apiService.predictions.submit(
+          session._id, 
+          prediction.trim(), 
+          true, 
+          user.id, 
+          user.username
+        );
+      }
+      
+      if (response && response.predictions) {
+        setPredictions(response.predictions);
       }
       
       setHasSubmitted(true);

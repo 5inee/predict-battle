@@ -1,3 +1,5 @@
+// في ملف frontend/src/context/AuthContext.js
+
 import { createContext, useState, useEffect, useContext, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import api, { apiService } from '../services/api';
@@ -30,8 +32,17 @@ export const AuthProvider = ({ children }) => {
         
         if (storedGuest) {
           // إذا كان مستخدم ضيف
-          setUser(JSON.parse(storedGuest));
+          const guestData = JSON.parse(storedGuest);
+          setUser(guestData);
           setIsGuest(true);
+          
+          // تسجيل/تحديث الضيف في الخادم
+          try {
+            await apiService.guests.registerGuest(guestData.id, guestData.username);
+          } catch (guestError) {
+            console.error('Error registering guest:', guestError);
+            // نستمر حتى لو فشل التسجيل
+          }
         } else if (storedUser && storedToken) {
           // إذا كان مستخدم مسجل
           setUser(JSON.parse(storedUser));
@@ -116,30 +127,39 @@ export const AuthProvider = ({ children }) => {
   }, [router]);
 
   // تسجيل الدخول كضيف
-  const loginAsGuest = useCallback((guestName) => {
+  const loginAsGuest = useCallback(async (guestName) => {
     if (!guestName || guestName.trim() === '') {
       setError('الرجاء إدخال اسمك');
       return false;
     }
     
-    // إنشاء كائن المستخدم الضيف
-    const guestUser = {
-      id: `guest_${Date.now()}`,
-      username: guestName.trim()
-    };
-    
-    // تخزين بيانات الضيف
-    localStorage.setItem('guest', JSON.stringify(guestUser));
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    
-    setUser(guestUser);
-    setToken(null);
-    setIsGuest(true);
-    delete api.defaults.headers.common['Authorization'];
-    
-    router.push('/sessions');
-    return true;
+    try {
+      // إنشاء كائن المستخدم الضيف
+      const guestUser = {
+        id: `guest_${Date.now()}`,
+        username: guestName.trim()
+      };
+      
+      // تسجيل الضيف في الخادم
+      await apiService.guests.registerGuest(guestUser.id, guestUser.username);
+      
+      // تخزين بيانات الضيف
+      localStorage.setItem('guest', JSON.stringify(guestUser));
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      
+      setUser(guestUser);
+      setToken(null);
+      setIsGuest(true);
+      delete api.defaults.headers.common['Authorization'];
+      
+      router.push('/sessions');
+      return true;
+    } catch (err) {
+      console.error('Error logging in as guest:', err);
+      setError('حدث خطأ أثناء تسجيل الدخول كضيف. يرجى المحاولة مرة أخرى.');
+      return false;
+    }
   }, [router]);
 
   // دالة محسنة لتسجيل الخروج
@@ -166,6 +186,12 @@ export const AuthProvider = ({ children }) => {
     return !!token && !isGuest;
   }, [token, isGuest]);
 
+  // الحصول على معلومات الضيف للطلبات
+  const getGuestParams = useCallback(() => {
+    if (!isGuest || !user) return '';
+    return `guest=true&guestId=${user.id}&guestName=${encodeURIComponent(user.username)}`;
+  }, [isGuest, user]);
+
   // إعادة تعيين الخطأ
   const clearError = useCallback(() => {
     setError(null);
@@ -184,6 +210,7 @@ export const AuthProvider = ({ children }) => {
     logout,
     isAuthenticated,
     isRegisteredUser,
+    getGuestParams,
     setError,
     clearError
   };

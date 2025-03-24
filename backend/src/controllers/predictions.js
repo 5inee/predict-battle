@@ -1,11 +1,12 @@
-const Prediction = require('../models/Prediction');
-const Session = require('../models/Session');
-const mongoose = require('mongoose');
+// في ملف backend/src/controllers/predictions.js
+// تعديل دالة submitPrediction لدعم الضيوف
 
-// معالج محسّن لتقديم التوقعات
 exports.submitPrediction = async (req, res) => {
   try {
     const { sessionId, content } = req.body;
+    const isGuest = req.query.guest === 'true';
+    const guestId = req.query.guestId;
+    const guestName = req.query.guestName;
     
     // التحقق من وجود البيانات المطلوبة
     if (!sessionId) {
@@ -35,23 +36,58 @@ exports.submitPrediction = async (req, res) => {
     }
     
     // التحقق مما إذا كان المستخدم مشاركًا في الجلسة
-    const isParticipant = session.participants.some(p => 
-      p.user && p.user.toString() === req.user._id.toString()
-    );
+    let isParticipant = false;
+    
+    if (!isGuest) {
+      // مستخدم مسجل
+      isParticipant = session.participants.some(p => 
+        p.user && p.user.toString() === req.user._id.toString()
+      );
+    } else {
+      // مستخدم ضيف
+      isParticipant = session.participants.some(p => 
+        p.guestId && p.guestId === guestId
+      );
+    }
     
     if (!isParticipant) {
-      return res.status(403).json({ message: 'You are not a participant in this session' });
+      // إذا لم يكن مشاركًا، نحاول إضافته
+      if (!isGuest) {
+        // إضافة مستخدم مسجل
+        session.participants.push({ user: req.user._id });
+      } else if (guestId && guestName) {
+        // إضافة ضيف
+        session.participants.push({ 
+          guestId: guestId,
+          guestName: guestName 
+        });
+      } else {
+        return res.status(403).json({ message: 'You are not a participant in this session' });
+      }
+      
+      await session.save();
     }
     
     // التحقق مما إذا كان المستخدم قد قدم توقعًا بالفعل
     let existingPrediction;
     try {
-      existingPrediction = await Prediction.findOne({
-        $or: [
-          { session: sessionId, user: req.user._id },
-          { game: sessionId, user: req.user._id }
-        ]
-      });
+      if (!isGuest) {
+        // مستخدم مسجل
+        existingPrediction = await Prediction.findOne({
+          $or: [
+            { session: sessionId, user: req.user._id },
+            { game: sessionId, user: req.user._id }
+          ]
+        });
+      } else {
+        // مستخدم ضيف
+        existingPrediction = await Prediction.findOne({
+          $or: [
+            { session: sessionId, guestId: guestId },
+            { game: sessionId, guestId: guestId }
+          ]
+        });
+      }
     } catch (err) {
       console.error('Error finding existing prediction:', err);
       return res.status(500).json({ message: 'Error checking for existing prediction' });
@@ -84,9 +120,17 @@ exports.submitPrediction = async (req, res) => {
     const prediction = new Prediction({
       session: sessionId,
       game: sessionId, // تعيين كلا الحقلين للتوافق مع الفهرس القديم والجديد
-      user: req.user._id,
-      content: content.trim()
+      content: content.trim(),
+      submittedAt: new Date()
     });
+    
+    // تعيين معلومات المستخدم حسب نوعه
+    if (!isGuest) {
+      prediction.user = req.user._id;
+    } else {
+      prediction.guestId = guestId;
+      prediction.guestName = guestName;
+    }
     
     // حفظ التوقع
     try {
@@ -94,7 +138,6 @@ exports.submitPrediction = async (req, res) => {
     } catch (err) {
       console.error('Error saving prediction:', err);
       
-      // معالجة خطأ مفتاح مكرر بشكل خاص
       if (err.code === 11000) {
         // في حالة حدوث خطأ مفتاح مكرر، ربما تم تقديم توقع بالفعل بين التحقق والحفظ
         try {
@@ -109,7 +152,12 @@ exports.submitPrediction = async (req, res) => {
           .sort({ submittedAt: 1 });
           
           // البحث عن توقع المستخدم
-          const userPrediction = predictions.find(p => p.user._id.toString() === req.user._id.toString());
+          let userPrediction;
+          if (!isGuest) {
+            userPrediction = predictions.find(p => p.user && p.user._id.toString() === req.user._id.toString());
+          } else {
+            userPrediction = predictions.find(p => p.guestId === guestId);
+          }
           
           return res.status(200).json({
             message: 'Your prediction was already submitted',
@@ -153,29 +201,5 @@ exports.submitPrediction = async (req, res) => {
   } catch (error) {
     console.error('Unhandled error in submitPrediction:', error);
     res.status(500).json({ message: 'Server error while processing your prediction' });
-  }
-};
-
-// Get predictions for session
-exports.getSessionPredictions = async (req, res) => {
-  try {
-    const { sessionId } = req.params;
-    
-    // Check if session exists
-    const session = await Session.findById(sessionId);
-    
-    if (!session) {
-      return res.status(404).json({ message: 'Session not found' });
-    }
-    
-    // Get predictions
-    const predictions = await Prediction.find({ session: sessionId })
-      .populate('user', 'username')
-      .sort({ submittedAt: 1 });
-    
-    res.status(200).json(predictions);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
   }
 };

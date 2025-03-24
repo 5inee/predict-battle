@@ -78,6 +78,9 @@ export default function Sessions() {
 // نعدل دالة handleJoinSession لتناسب المستخدمين الضيوف
 
 // الانضمام إلى جلسة
+// في ملف frontend/src/pages/sessions/index.js
+
+// الانضمام إلى جلسة
 const handleJoinSession = async (e) => {
   e.preventDefault();
   if (!gameCode.trim()) {
@@ -88,17 +91,14 @@ const handleJoinSession = async (e) => {
   try {
     setIsJoining(true);
     
-    // إذا كان مستخدم مسجل، نستخدم API لإرسال طلب الانضمام
     if (isRegisteredUser()) {
-      await api.post(`/sessions/join/${gameCode}`);
-    } 
-    // للضيوف، ننتقل إلى صفحة الجلسة مباشرة بدون الاتصال بالباكيند
-    else if (isGuest) {
-      // ننتقل إلى صفحة الجلسة بدون محاولة الانضمام من خلال API
-      // سيتم التعامل مع ذلك في صفحة الجلسة نفسها
+      // للمستخدمين المسجلين
+      await apiService.sessions.join(gameCode);
+    } else if (isGuest && user) {
+      // للضيوف
+      await apiService.sessions.join(gameCode, true, user.id, user.username);
     }
     
-    // ننتقل إلى صفحة الجلسة
     router.push(`/sessions/${gameCode}`);
   } catch (err) {
     console.error('Error joining session:', err);

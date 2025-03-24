@@ -9,6 +9,7 @@ const morgan = require('morgan');
 const authRoutes = require('./routes/auth');
 const sessionRoutes = require('./routes/sessions');
 const predictionRoutes = require('./routes/predictions');
+const guestRoutes = require('./routes/guests'); // إضافة مسارات الضيوف
 
 // Initialize express app
 const app = express();
@@ -29,6 +30,7 @@ mongoose.connect(process.env.MONGODB_URI)
 app.use('/api/auth', authRoutes);
 app.use('/api/sessions', sessionRoutes);
 app.use('/api/predictions', predictionRoutes);
+app.use('/api/guests', guestRoutes); // إضافة مسارات الضيوف
 
 // Base route
 app.get('/', (req, res) => {
