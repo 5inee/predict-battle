@@ -74,24 +74,38 @@ export default function Sessions() {
   };
 
   // الانضمام إلى جلسة
-  const handleJoinSession = async (e) => {
-    e.preventDefault();
-    if (!gameCode.trim()) {
-      setError('الرجاء إدخال كود اللعبة');
-      return;
-    }
+// في ملف sessions/index.js
+// نعدل دالة handleJoinSession لتناسب المستخدمين الضيوف
 
-    try {
-      setIsJoining(true);
-      if (isRegisteredUser()) {
-        await api.post(`/sessions/join/${gameCode}`);
-      }
-      router.push(`/sessions/${gameCode}`);
-    } catch (err) {
-      setError(err.response?.data?.message || 'فشل في الانضمام إلى الجلسة، تأكد من صحة الكود والمحاولة مرة أخرى.');
-      setIsJoining(false);
+// الانضمام إلى جلسة
+const handleJoinSession = async (e) => {
+  e.preventDefault();
+  if (!gameCode.trim()) {
+    setError('الرجاء إدخال كود اللعبة');
+    return;
+  }
+
+  try {
+    setIsJoining(true);
+    
+    // إذا كان مستخدم مسجل، نستخدم API لإرسال طلب الانضمام
+    if (isRegisteredUser()) {
+      await api.post(`/sessions/join/${gameCode}`);
+    } 
+    // للضيوف، ننتقل إلى صفحة الجلسة مباشرة بدون الاتصال بالباكيند
+    else if (isGuest) {
+      // ننتقل إلى صفحة الجلسة بدون محاولة الانضمام من خلال API
+      // سيتم التعامل مع ذلك في صفحة الجلسة نفسها
     }
-  };
+    
+    // ننتقل إلى صفحة الجلسة
+    router.push(`/sessions/${gameCode}`);
+  } catch (err) {
+    console.error('Error joining session:', err);
+    setError(err.response?.data?.message || 'فشل في الانضمام إلى الجلسة، تأكد من صحة الكود والمحاولة مرة أخرى.');
+    setIsJoining(false);
+  }
+};
 
   // إنشاء جلسة جديدة
   const handleCreateSession = async (e) => {

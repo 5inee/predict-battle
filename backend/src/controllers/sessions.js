@@ -103,6 +103,39 @@ exports.getUserSessions = async (req, res) => {
   }
 };
 
+// في ملف backend/src/controllers/sessions.js
+// نضيف دالة جديدة للوصول العام إلى تفاصيل الجلسة (بدون مصادقة)
+
+// Get session by code (public version - no authentication required)
+exports.getSessionByCodePublic = async (req, res) => {
+  try {
+    const { code } = req.params;
+    
+    // Find session
+    const session = await Session.findOne({ code })
+      .populate('participants.user', 'username')
+      .populate('creator', 'username');
+    
+    if (!session) {
+      return res.status(404).json({ message: 'Session not found' });
+    }
+    
+    // Get predictions for this session
+    const predictions = await Prediction.find({ session: session._id })
+      .populate('user', 'username')
+      .sort({ submittedAt: 1 });
+    
+    // تقديم نفس الاستجابة مثل المسار المحمي
+    res.status(200).json({
+      session,
+      predictions
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 // Get session by code
 exports.getSessionByCode = async (req, res) => {
   try {

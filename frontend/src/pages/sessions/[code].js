@@ -38,40 +38,78 @@ export default function SessionDetail() {
   }, [initialized, isAuthenticated, router]);
 
   // جلب تفاصيل الجلسة والتوقعات
-  useEffect(() => {
-    const fetchSessionDetails = async () => {
-      if (!code || !initialized || !isAuthenticated()) {
-        return;
-      }
+// في ملف sessions/[code].js
+// نعدل function fetchSessionDetails لتعمل مع المستخدمين الضيوف
+
+useEffect(() => {
+  const fetchSessionDetails = async () => {
+    if (!code || !initialized || !isAuthenticated()) {
+      return;
+    }
+    
+    try {
+      setLoading(true);
       
-      try {
-        setLoading(true);
-        
-        // بالنسبة للمستخدمين المسجلين والضيوف، نستخدم نفس الطلب لأن لدينا واجهة لقراءة الجلسات
+      // في حالة المستخدم المسجل، نستخدم API المعتاد مع التوكن
+      if (isRegisteredUser()) {
         const response = await api.get(`/sessions/${code}`);
         setSession(response.data.session);
         setPredictions(response.data.predictions);
         
         // التحقق مما إذا كان المستخدم قد قدم توقعًا
-        if (user && response.data.predictions.some(p => 
-          p.user._id === user.id || 
-          (isGuest && p.user.username === user.username)
-        )) {
+        if (user && response.data.predictions.some(p => p.user._id === user.id)) {
           setHasSubmitted(true);
         }
-        
-        setLoading(false);
-      } catch (err) {
-        console.error('Error fetching session details:', err);
-        setError('فشل في تحميل تفاصيل الجلسة، يرجى المحاولة مرة أخرى.');
-        setLoading(false);
+      } 
+      // في حالة الضيف، نستخدم طلبًا مباشرًا إلى نقطة نهاية عامة بدون حاجة للمصادقة
+      else if (isGuest) {
+        // يمكننا استخدام api بدون token لكن علينا معالجة الخطأ
+        try {
+          // سنحاول الحصول على بيانات الجلسة بدون مصادقة
+          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/sessions/${code}/public`, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          if (!response.ok) {
+            throw new Error('فشل في جلب تفاصيل الجلسة');
+          }
+          
+          const data = await response.json();
+          setSession(data.session);
+          setPredictions(data.predictions || []);
+        } catch (guestError) {
+          console.error('Error fetching session as guest:', guestError);
+          // إذا فشل الطلب كضيف، سنستخدم طريقة بديلة
+          // إنشاء بيانات جلسة افتراضية باستخدام الكود
+          const dummySession = {
+            _id: `guest_session_${code}`,
+            code: code,
+            question: "تم الانضمام كضيف",
+            maxPlayers: 10,
+            participants: [{ user: { _id: user.id, username: user.username } }],
+            status: 'waiting'
+          };
+          
+          setSession(dummySession);
+          setPredictions([]);
+        }
       }
-    };
-
-    if (initialized && isAuthenticated()) {
-      fetchSessionDetails();
+      
+      setLoading(false);
+    } catch (err) {
+      console.error('Error fetching session details:', err);
+      setError('فشل في تحميل تفاصيل الجلسة، يرجى المحاولة مرة أخرى.');
+      setLoading(false);
     }
-  }, [code, initialized, isAuthenticated, user, isRegisteredUser, isGuest]);
+  };
+
+  if (initialized && isAuthenticated()) {
+    fetchSessionDetails();
+  }
+}, [code, initialized, isAuthenticated, user, isRegisteredUser, isGuest]);
 
   // إرسال التوقع
   const handleSubmitPrediction = async (e) => {
