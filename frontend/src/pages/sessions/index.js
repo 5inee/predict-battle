@@ -13,9 +13,7 @@ import {
   FaExclamationTriangle,
   FaQuestion,
   FaCode,
-  FaLock,
-  FaSignInAlt,
-  FaUserPlus
+  FaLock
 } from 'react-icons/fa';
 
 export default function Sessions() {
@@ -32,7 +30,7 @@ export default function Sessions() {
   const [isJoining, setIsJoining] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   
-  const { isAuthenticated, initialized, isGuest } = useAuth();
+  const { isAuthenticated, initialized } = useAuth();
   const router = useRouter();
 
   // التحقق من تسجيل الدخول
@@ -45,8 +43,7 @@ export default function Sessions() {
   // جلب جلسات المستخدم
   useEffect(() => {
     const fetchUserSessions = async () => {
-      if (!initialized || !isAuthenticated() || isGuest) {
-        setLoading(false);
+      if (!initialized || !isAuthenticated()) {
         return;
       }
       
@@ -61,35 +58,15 @@ export default function Sessions() {
       }
     };
 
-    if (initialized && isAuthenticated() && activeTab === 'my-sessions-tab') {
+    if (initialized && isAuthenticated()) {
       fetchUserSessions();
     }
-  }, [initialized, isAuthenticated, isGuest, activeTab]);
+  }, [initialized, isAuthenticated]);
 
   // تغيير التبويب النشط
   const handleTabChange = (tabId) => {
     setActiveTab(tabId);
     setError(null);
-    
-    // إذا انتقل إلى تبويب جلساتي وكان مستخدم ضيف، لا نحتاج لتحميل الجلسات
-    if (tabId === 'my-sessions-tab' && !isGuest) {
-      setLoading(true);
-      fetchUserSessions();
-    }
-  };
-
-  // جلب جلسات المستخدم
-  const fetchUserSessions = async () => {
-    if (isGuest) return;
-    
-    try {
-      const response = await api.get('/sessions/user');
-      setUserSessions(response.data);
-      setLoading(false);
-    } catch (err) {
-      setError('حدث خطأ أثناء تحميل الجلسات، يرجى المحاولة مرة أخرى.');
-      setLoading(false);
-    }
   };
 
   // الانضمام إلى جلسة
@@ -102,13 +79,6 @@ export default function Sessions() {
 
     try {
       setIsJoining(true);
-      
-      if (isGuest) {
-        // للمستخدم الضيف، ننتقل مباشرة إلى صفحة الجلسة بدون طلب الانضمام للخادم
-        router.push(`/sessions/${gameCode}`);
-        return;
-      }
-      
       await api.post(`/sessions/join/${gameCode}`);
       router.push(`/sessions/${gameCode}`);
     } catch (err) {
@@ -342,75 +312,57 @@ export default function Sessions() {
           {/* محتوى تبويب جلساتي */}
           {activeTab === 'my-sessions-tab' && (
             <div className="tab-content active" id="my-sessions-tab">
-              {isGuest ? (
-                <div className="guest-sessions-notice">
-                  <FaExclamationTriangle className="notice-icon" />
-                  <h3>هذه الميزة غير متاحة للضيوف</h3>
-                  <p>يجب عليك تسجيل الدخول أو إنشاء حساب للوصول إلى سجل جلساتك</p>
-                  <div className="guest-action-buttons">
-                    <button onClick={() => router.push('/')} className="btn btn-primary">
-                      <FaSignInAlt /> تسجيل الدخول
-                    </button>
-                    <button onClick={() => router.push('/')} className="btn btn-secondary">
-                      <FaUserPlus /> إنشاء حساب
-                    </button>
-                  </div>
+              <div className="search-bar">
+                <div className="input-wrapper">
+                  <FaSearch className="input-icon" />
+                  <input
+                    type="text"
+                    placeholder="ابحث في جلساتك..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
                 </div>
-              ) : (
-                <>
-                  <div className="search-bar">
-                    <div className="input-wrapper">
-                      <FaSearch className="input-icon" />
-                      <input
-                        type="text"
-                        placeholder="ابحث في جلساتك..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                      />
-                    </div>
+              </div>
+              
+              <div className="sessions-list">
+                {loading ? (
+                  <div className="loading-text">
+                    <div className="loading"></div>
+                    <span>جارِ تحميل الجلسات...</span>
                   </div>
-                  
-                  <div className="sessions-list">
-                    {loading ? (
-                      <div className="loading-text">
-                        <div className="loading"></div>
-                        <span>جارِ تحميل الجلسات...</span>
+                ) : filteredSessions.length > 0 ? (
+                  filteredSessions.map((session) => (
+                    <div
+                      key={session._id}
+                      className="session-card"
+                      onClick={() => router.push(`/sessions/${session.code}`)}
+                    >
+                      <div className="session-title">{session.question}</div>
+                      <div className="session-code">
+                        <FaCode /> كود الجلسة: {session.code}
                       </div>
-                    ) : filteredSessions.length > 0 ? (
-                      filteredSessions.map((session) => (
-                        <div
-                          key={session._id}
-                          className="session-card"
-                          onClick={() => router.push(`/sessions/${session.code}`)}
-                        >
-                          <div className="session-title">{session.question}</div>
-                          <div className="session-code">
-                            <FaCode /> كود الجلسة: {session.code}
-                          </div>
-                          <div className="session-meta">
-                            <div className="session-date">
-                              <FaCalendarAlt />
-                              <span>{formatDate(session.createdAt)}</span>
-                            </div>
-                            <div className="session-players">
-                              <FaUsers />
-                              <span>
-                                {session.participants.length}/{session.maxPlayers}
-                              </span>
-                            </div>
-                          </div>
+                      <div className="session-meta">
+                        <div className="session-date">
+                          <FaCalendarAlt />
+                          <span>{formatDate(session.createdAt)}</span>
                         </div>
-                      ))
-                    ) : (
-                      <div className="no-sessions">
-                        <FaExclamationTriangle style={{ fontSize: '24px', marginBottom: '10px' }} />
-                        <p>لم تنضم لأي جلسات حتى الآن</p>
-                        <p style={{ fontSize: '14px', marginTop: '5px' }}>انضم إلى جلسة موجودة أو قم بإنشاء جلسة جديدة</p>
+                        <div className="session-players">
+                          <FaUsers />
+                          <span>
+                            {session.participants.length}/{session.maxPlayers}
+                          </span>
+                        </div>
                       </div>
-                    )}
+                    </div>
+                  ))
+                ) : (
+                  <div className="no-sessions">
+                    <FaExclamationTriangle style={{ fontSize: '24px', marginBottom: '10px' }} />
+                    <p>لم تنضم لأي جلسات حتى الآن</p>
+                    <p style={{ fontSize: '14px', marginTop: '5px' }}>انضم إلى جلسة موجودة أو قم بإنشاء جلسة جديدة</p>
                   </div>
-                </>
-              )}
+                )}
+              </div>
             </div>
           )}
         </div>

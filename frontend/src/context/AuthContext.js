@@ -27,12 +27,13 @@ export const AuthProvider = ({ children }) => {
         const storedUser = localStorage.getItem('user');
         const storedToken = localStorage.getItem('token');
         const storedGuest = localStorage.getItem('guest');
-
+        
         if (storedGuest) {
-          // استعادة بيانات المستخدم الضيف
+          // إذا كان مستخدم ضيف
           setUser(JSON.parse(storedGuest));
           setIsGuest(true);
         } else if (storedUser && storedToken) {
+          // إذا كان مستخدم مسجل
           setUser(JSON.parse(storedUser));
           setToken(storedToken);
           setIsGuest(false);
@@ -70,9 +71,9 @@ export const AuthProvider = ({ children }) => {
       
       const { token, user } = data;
       
-      localStorage.removeItem('guest');
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
+      localStorage.removeItem('guest'); // إزالة بيانات الضيف إذا وجدت
       
       setUser(user);
       setToken(token);
@@ -96,9 +97,9 @@ export const AuthProvider = ({ children }) => {
       
       const { token, user } = data;
       
-      localStorage.removeItem('guest');
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
+      localStorage.removeItem('guest'); // إزالة بيانات الضيف إذا وجدت
       
       setUser(user);
       setToken(token);
@@ -114,39 +115,31 @@ export const AuthProvider = ({ children }) => {
     }
   }, [router]);
 
-  // دالة جديدة للدخول كضيف
+  // تسجيل الدخول كضيف
   const loginAsGuest = useCallback((guestName) => {
-    try {
-      if (!guestName || guestName.trim() === '') {
-        setError('الرجاء إدخال اسمك');
-        return false;
-      }
-
-      const guestUser = {
-        id: `guest-${Date.now()}`,
-        username: guestName.trim(),
-        isGuest: true
-      };
-
-      // حفظ بيانات الضيف في التخزين المحلي
-      localStorage.setItem('guest', JSON.stringify(guestUser));
-      
-      // إزالة أي بيانات مستخدم سابقة
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      delete api.defaults.headers.common['Authorization'];
-
-      setUser(guestUser);
-      setToken(null);
-      setIsGuest(true);
-      
-      router.push('/sessions');
-      return true;
-    } catch (err) {
-      console.error('Error logging in as guest:', err);
-      setError('حدث خطأ أثناء الدخول كضيف');
+    if (!guestName || guestName.trim() === '') {
+      setError('الرجاء إدخال اسمك');
       return false;
     }
+    
+    // إنشاء كائن المستخدم الضيف
+    const guestUser = {
+      id: `guest_${Date.now()}`,
+      username: guestName.trim()
+    };
+    
+    // تخزين بيانات الضيف
+    localStorage.setItem('guest', JSON.stringify(guestUser));
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    
+    setUser(guestUser);
+    setToken(null);
+    setIsGuest(true);
+    delete api.defaults.headers.common['Authorization'];
+    
+    router.push('/sessions');
+    return true;
   }, [router]);
 
   // دالة محسنة لتسجيل الخروج
@@ -163,9 +156,14 @@ export const AuthProvider = ({ children }) => {
     router.push('/');
   }, [router]);
 
-  // تحقق ما إذا كان المستخدم قد قام بتسجيل الدخول
+  // تحقق ما إذا كان المستخدم قد قام بتسجيل الدخول أو دخل كضيف
   const isAuthenticated = useCallback(() => {
     return !!token || isGuest;
+  }, [token, isGuest]);
+
+  // تحقق ما إذا كان المستخدم مسجلاً (ليس ضيفاً)
+  const isRegisteredUser = useCallback(() => {
+    return !!token && !isGuest;
   }, [token, isGuest]);
 
   // إعادة تعيين الخطأ
@@ -185,6 +183,7 @@ export const AuthProvider = ({ children }) => {
     loginAsGuest,
     logout,
     isAuthenticated,
+    isRegisteredUser,
     setError,
     clearError
   };

@@ -11,8 +11,7 @@ import {
   FaUsers,
   FaArrowRight,
   FaCode,
-  FaQuestion,
-  FaTag
+  FaQuestion
 } from 'react-icons/fa';
 
 export default function SessionDetail() {
@@ -24,7 +23,7 @@ export default function SessionDetail() {
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   
-  const { user, isAuthenticated, initialized, isGuest } = useAuth();
+  const { user, isAuthenticated, initialized } = useAuth();
   const router = useRouter();
   const { code } = router.query;
 
@@ -44,37 +43,13 @@ export default function SessionDetail() {
       
       try {
         setLoading(true);
+        const response = await api.get(`/sessions/${code}`);
+        setSession(response.data.session);
+        setPredictions(response.data.predictions);
         
-        // إذا كان مستخدم ضيف
-        if (isGuest) {
-          // محاولة جلب الجلسة بدون مصادقة - قد لا تعمل في الواقع دون تعديل الخادم
-          try {
-            const response = await api.get(`/sessions/${code}`);
-            setSession(response.data.session);
-            setPredictions(response.data.predictions);
-          } catch (err) {
-            // إذا فشل الطلب، إنشاء بيانات جلسة وهمية
-            const sessionData = {
-              _id: `guest-session-${Date.now()}`,
-              code: code,
-              question: "أدخل سؤال الجلسة...",
-              maxPlayers: 10,
-              participants: [{user: {_id: user.id, username: user.username}}],
-              status: "waiting"
-            };
-            setSession(sessionData);
-            setPredictions([]);
-          }
-        } else {
-          // الطلب العادي للمستخدمين المسجلين
-          const response = await api.get(`/sessions/${code}`);
-          setSession(response.data.session);
-          setPredictions(response.data.predictions);
-          
-          // التحقق مما إذا كان المستخدم قد قدم توقعًا
-          if (user && response.data.predictions.some(p => p.user._id === user.id)) {
-            setHasSubmitted(true);
-          }
+        // التحقق مما إذا كان المستخدم قد قدم توقعًا
+        if (user && response.data.predictions.some(p => p.user._id === user.id)) {
+          setHasSubmitted(true);
         }
         
         setLoading(false);
@@ -87,114 +62,94 @@ export default function SessionDetail() {
     if (initialized && isAuthenticated()) {
       fetchSessionDetails();
     }
-  }, [code, initialized, isAuthenticated, user, isGuest]);
+  }, [code, initialized, isAuthenticated, user]);
 
   // إرسال التوقع
-  const handleSubmitPrediction = async (e) => {
-    e.preventDefault();
-    
-    // التحقق من صحة المدخلات
-    if (!prediction || !prediction.trim()) {
-      setError('الرجاء إدخال توقعك');
-      return;
-    }
-    
-    if (!session) {
-      setError('بيانات الجلسة غير متوفرة، يرجى تحديث الصفحة والمحاولة مرة أخرى');
-      return;
-    }
+// في ملف frontend/src/pages/sessions/[code].js
+// وظيفة محسّنة لمعالجة إرسال التوقع في الواجهة الأمامية
+const handleSubmitPrediction = async (e) => {
+  e.preventDefault();
+  
+  // التحقق من صحة المدخلات
+  if (!prediction || !prediction.trim()) {
+    setError('الرجاء إدخال توقعك');
+    return;
+  }
+  
+  if (!session || !session._id) {
+    setError('بيانات الجلسة غير متوفرة، يرجى تحديث الصفحة والمحاولة مرة أخرى');
+    return;
+  }
 
-    try {
-      setSubmitting(true);
-      setError(null); // مسح أي خطأ سابق
-
-      // معالجة خاصة للمستخدمين الضيوف
-      if (isGuest) {
-        // إنشاء توقع وهمي للضيف
-        const guestPrediction = {
-          _id: `guest-prediction-${Date.now()}`,
-          content: prediction.trim(),
-          user: {
-            _id: user.id,
-            username: user.username
-          },
-          submittedAt: new Date().toISOString()
-        };
+  try {
+    setSubmitting(true);
+    setError(null); // مسح أي خطأ سابق
+    
+    // استخدام محاولات متعددة (retry) في حالة الاتصال غير المستقر
+    let retries = 2;
+    let success = false;
+    let response;
+    
+    while (retries >= 0 && !success) {
+      try {
+        response = await api.post('/predictions', {
+          sessionId: session._id,
+          content: prediction.trim()
+        });
+        success = true;
+      } catch (retryErr) {
+        console.error(`Error attempt ${2 - retries}/2:`, retryErr);
+        retries--;
         
-        // إضافة التوقع إلى القائمة
-        const updatedPredictions = [...predictions, guestPrediction];
-        setPredictions(updatedPredictions);
-        setHasSubmitted(true);
-        setPrediction('');
-        setSubmitting(false);
-        return;
-      }
-      
-      // استخدام محاولات متعددة (retry) في حالة الاتصال غير المستقر
-      let retries = 2;
-      let success = false;
-      let response;
-      
-      while (retries >= 0 && !success) {
-        try {
-          response = await api.post('/predictions', {
-            sessionId: session._id,
-            content: prediction.trim()
-          });
+        // إذا كان الخطأ "لقد قدمت توقعًا بالفعل"، نعتبره نجاحًا
+        if (retryErr.response?.data?.message === 'You have already submitted a prediction') {
+          response = retryErr.response;
           success = true;
-        } catch (retryErr) {
-          console.error(`Error attempt ${2 - retries}/2:`, retryErr);
-          retries--;
-          
-          // إذا كان الخطأ "لقد قدمت توقعًا بالفعل"، نعتبره نجاحًا
-          if (retryErr.response?.data?.message === 'You have already submitted a prediction') {
-            response = retryErr.response;
-            success = true;
-            break;
-          }
-          
-          // إذا لم يبق محاولات، نرمي الخطأ للمعالجة اللاحقة
-          if (retries < 0) throw retryErr;
-          
-          // انتظار قبل المحاولة التالية
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          break;
         }
+        
+        // إذا لم يبق محاولات، نرمي الخطأ للمعالجة اللاحقة
+        if (retries < 0) throw retryErr;
+        
+        // انتظار قبل المحاولة التالية
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
-      
-      // معالجة الاستجابة الناجحة
-      if (response.data.predictions) {
-        setPredictions(response.data.predictions);
-      }
-      
-      setHasSubmitted(true);
-      setPrediction(''); // مسح مربع الإدخال بعد الإرسال الناجح
-      setSubmitting(false);
-    } catch (err) {
-      console.error('Error submitting prediction:', err);
-      
-      // معالجة مختلف أنواع الخطأ
-      if (err.response) {
-        // الخادم استجاب برمز حالة خارج نطاق 2xx
-        if (err.response.status === 403) {
-          setError('غير مصرّح لك بإرسال توقع في هذه الجلسة');
-        } else if (err.response.status === 404) {
-          setError('الجلسة غير موجودة أو تم حذفها');
-        } else if (err.response.status === 400) {
-          setError(err.response.data.message || 'بيانات غير صحيحة، يرجى التحقق من المدخلات');
-        } else {
-          setError(err.response.data.message || 'حدث خطأ في الخادم، يرجى المحاولة مرة أخرى لاحقًا');
-        }
-      } else if (err.request) {
-        // تم إنشاء الطلب ولكن لم يتم استلام استجابة
-        setError('لا يمكن الاتصال بالخادم، يرجى التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى');
-      } else {
-        // حدث خطأ أثناء إعداد الطلب
-        setError('حدث خطأ أثناء إرسال التوقع، يرجى المحاولة مرة أخرى');
-      }
-      
-      setSubmitting(false);
     }
-  };
+    
+    // معالجة الاستجابة الناجحة
+    if (response.data.predictions) {
+      setPredictions(response.data.predictions);
+    }
+    
+    setHasSubmitted(true);
+    setPrediction(''); // مسح مربع الإدخال بعد الإرسال الناجح
+    setSubmitting(false);
+  } catch (err) {
+    console.error('Error submitting prediction:', err);
+    
+    // معالجة مختلف أنواع الخطأ
+    if (err.response) {
+      // الخادم استجاب برمز حالة خارج نطاق 2xx
+      if (err.response.status === 403) {
+        setError('غير مصرّح لك بإرسال توقع في هذه الجلسة');
+      } else if (err.response.status === 404) {
+        setError('الجلسة غير موجودة أو تم حذفها');
+      } else if (err.response.status === 400) {
+        setError(err.response.data.message || 'بيانات غير صحيحة، يرجى التحقق من المدخلات');
+      } else {
+        setError(err.response.data.message || 'حدث خطأ في الخادم، يرجى المحاولة مرة أخرى لاحقًا');
+      }
+    } else if (err.request) {
+      // تم إنشاء الطلب ولكن لم يتم استلام استجابة
+      setError('لا يمكن الاتصال بالخادم، يرجى التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى');
+    } else {
+      // حدث خطأ أثناء إعداد الطلب
+      setError('حدث خطأ أثناء إرسال التوقع، يرجى المحاولة مرة أخرى');
+    }
+    
+    setSubmitting(false);
+  }
+};
 
   // تنسيق التاريخ والوقت
   const formatDateTime = (dateString) => {
@@ -308,12 +263,6 @@ export default function SessionDetail() {
 
   return (
     <Layout title={`PredictBattle - ${session.question}`}>
-      {isGuest && (
-        <div className="alert alert-warning guest-banner">
-          <FaTag /> أنت تتصفح كضيف: {user.username}. بعض الوظائف قد تكون محدودة.
-        </div>
-      )}
-      
       <div className="card">
         <div className="card-header">
           <div style={{ 
@@ -443,7 +392,6 @@ export default function SessionDetail() {
                       <div className="user-info">
                         <div className="username">
                           {p.user.username} {p.user._id === user.id ? '(أنت)' : ''}
-                          {p.user.isGuest && <span className="guest-tag">ضيف</span>}
                         </div>
                         <div className="timestamp">
                           <FaClock style={{ fontSize: '11px' }} />

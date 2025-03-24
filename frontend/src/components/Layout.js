@@ -1,12 +1,12 @@
 import Head from 'next/head';
 import { useRouter } from 'next/router';
-import { FaBolt, FaSignOutAlt, FaUser, FaRegSmile } from 'react-icons/fa';
+import { FaBolt, FaSignOutAlt, FaUser } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
 import { useState } from 'react';
 
 export default function Layout({ children, title = 'PredictBattle' }) {
   const router = useRouter();
-  const { isAuthenticated, logout, user, isGuest } = useAuth();
+  const { isAuthenticated, logout, user } = useAuth();
   const [loggingOut, setLoggingOut] = useState(false);
 
   const handleLogout = async () => {
@@ -35,10 +35,9 @@ export default function Layout({ children, title = 'PredictBattle' }) {
           {isAuthenticated() && (
             <div className="user-controls">
               {user && (
-                <div className={`username-display ${isGuest ? 'guest-user' : ''}`}>
-                  {isGuest ? <FaRegSmile style={{ marginLeft: '5px' }} /> : <FaUser style={{ marginLeft: '5px' }} />}
+                <div className="username-display">
+                  <FaUser style={{ marginLeft: '5px' }} />
                   {user.username}
-                  {isGuest && <span className="guest-indicator">ضيف</span>}
                 </div>
               )}
               <button 
@@ -73,4 +72,4 @@ export default function Layout({ children, title = 'PredictBattle' }) {
       </div>
     </>
   );
-};
+}
