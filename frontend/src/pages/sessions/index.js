@@ -13,7 +13,10 @@ import {
   FaExclamationTriangle,
   FaQuestion,
   FaCode,
-  FaLock
+  FaLock,
+  FaUserSecret,
+  FaSignInAlt,
+  FaUserPlus
 } from 'react-icons/fa';
 
 export default function Sessions() {
@@ -30,7 +33,7 @@ export default function Sessions() {
   const [isJoining, setIsJoining] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   
-  const { isAuthenticated, initialized } = useAuth();
+  const { isAuthenticated, isRegisteredUser, initialized, isGuest } = useAuth();
   const router = useRouter();
 
   // التحقق من تسجيل الدخول
@@ -43,7 +46,8 @@ export default function Sessions() {
   // جلب جلسات المستخدم
   useEffect(() => {
     const fetchUserSessions = async () => {
-      if (!initialized || !isAuthenticated()) {
+      if (!initialized || !isAuthenticated() || isGuest) {
+        setLoading(false);
         return;
       }
       
@@ -58,10 +62,10 @@ export default function Sessions() {
       }
     };
 
-    if (initialized && isAuthenticated()) {
+    if (initialized && isAuthenticated() && !isGuest) {
       fetchUserSessions();
     }
-  }, [initialized, isAuthenticated]);
+  }, [initialized, isAuthenticated, isGuest]);
 
   // تغيير التبويب النشط
   const handleTabChange = (tabId) => {
@@ -79,7 +83,9 @@ export default function Sessions() {
 
     try {
       setIsJoining(true);
-      await api.post(`/sessions/join/${gameCode}`);
+      if (isRegisteredUser()) {
+        await api.post(`/sessions/join/${gameCode}`);
+      }
       router.push(`/sessions/${gameCode}`);
     } catch (err) {
       setError(err.response?.data?.message || 'فشل في الانضمام إلى الجلسة، تأكد من صحة الكود والمحاولة مرة أخرى.');
@@ -116,8 +122,17 @@ export default function Sessions() {
 
   // فتح نموذج إنشاء جلسة جديدة
   const toggleCreateForm = () => {
+    if (isGuest) {
+      setError('للأسف، لا يمكن للضيوف إنشاء جلسات جديدة. الرجاء تسجيل الدخول أو إنشاء حساب أولاً.');
+      return;
+    }
     setShowCreateForm(!showCreateForm);
     setError(null);
+  };
+
+  // توجيه المستخدم إلى صفحة تسجيل الدخول
+  const redirectToLogin = () => {
+    router.push('/');
   };
 
   // تصفية الجلسات حسب مصطلح البحث
@@ -174,6 +189,13 @@ export default function Sessions() {
           <h1>جلسات التوقعات</h1>
           <p className="subtitle">انضم إلى جلسة موجودة أو قم بإنشاء جلسة جديدة</p>
           
+          {isGuest && (
+            <div className="guest-banner">
+              <FaUserSecret style={{ color: 'white', fontSize: '18px' }} />
+              <span>أنت تتصفح كضيف. بعض الميزات محدودة.</span>
+            </div>
+          )}
+          
           {/* نظام التبويبات */}
           <div className="tabs-container">
             <div
@@ -184,9 +206,11 @@ export default function Sessions() {
             </div>
             <div
               className={`tab ${activeTab === 'my-sessions-tab' ? 'active' : ''}`}
-              onClick={() => handleTabChange('my-sessions-tab')}
+              onClick={() => isGuest ? handleTabChange('join-tab') : handleTabChange('my-sessions-tab')}
+              style={{ opacity: isGuest ? 0.6 : 1, cursor: isGuest ? 'not-allowed' : 'pointer' }}
             >
               <FaUsers style={{ marginLeft: '6px' }} /> جلساتي
+              {isGuest && <span style={{ fontSize: '11px', marginRight: '5px', opacity: 0.8 }}>(للمسجلين فقط)</span>}
             </div>
             <div className={`tab-indicator ${activeTab === 'my-sessions-tab' ? 'second' : ''}`}></div>
           </div>
@@ -240,6 +264,13 @@ export default function Sessions() {
                   <button onClick={toggleCreateForm} className="btn btn-secondary">
                     <FaPlusCircle /> إنشاء لعبة جديدة
                   </button>
+                  
+                  {isGuest && (
+                    <div className="guest-notice">
+                      <FaUserSecret style={{ marginLeft: '5px' }} />
+                      للاستفادة من جميع الميزات، يمكنك <span className="link" onClick={redirectToLogin} style={{ fontWeight: 'bold', color: 'var(--primary)', cursor: 'pointer' }}>تسجيل الدخول أو إنشاء حساب</span>
+                    </div>
+                  )}
                 </>
               ) : (
                 <>
@@ -310,7 +341,7 @@ export default function Sessions() {
           )}
           
           {/* محتوى تبويب جلساتي */}
-          {activeTab === 'my-sessions-tab' && (
+          {activeTab === 'my-sessions-tab' && !isGuest && (
             <div className="tab-content active" id="my-sessions-tab">
               <div className="search-bar">
                 <div className="input-wrapper">
@@ -362,6 +393,28 @@ export default function Sessions() {
                     <p style={{ fontSize: '14px', marginTop: '5px' }}>انضم إلى جلسة موجودة أو قم بإنشاء جلسة جديدة</p>
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+          
+          {/* محتوى خاص بالضيوف عندما يحاولون الوصول إلى تبويب "جلساتي" */}
+          {activeTab === 'my-sessions-tab' && isGuest && (
+            <div className="tab-content active" id="guest-notice">
+              <div className="guest-sessions-notice">
+                <div className="notice-icon">
+                  <FaUserSecret />
+                </div>
+                <h3>ميزة محدودة للضيوف</h3>
+                <p>عرض الجلسات السابقة متاح فقط للمستخدمين المسجلين. قم بإنشاء حساب للاستفادة من جميع ميزات المنصة!</p>
+                
+                <div className="guest-action-buttons">
+                  <button onClick={() => router.push('/')} className="btn btn-primary">
+                    <FaSignInAlt /> تسجيل الدخول
+                  </button>
+                  <button onClick={() => router.push('/')} className="btn btn-secondary">
+                    <FaUserPlus /> إنشاء حساب جديد
+                  </button>
+                </div>
               </div>
             </div>
           )}
