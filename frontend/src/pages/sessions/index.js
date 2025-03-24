@@ -80,25 +80,25 @@ export default function Sessions() {
       setError('الرجاء إدخال كود اللعبة');
       return;
     }
-
+  
     try {
       setIsJoining(true);
-      console.log('Attempting to join session with code:', gameCode);
       
-      // للمستخدمين الضيوف، نتخطى الانضمام عبر API ونذهب مباشرة إلى صفحة الجلسة
-      if (isGuest) {
-        console.log('Guest user - redirecting directly to session page');
-        router.push(`/sessions/${gameCode}`);
-        return;
+      if (isRegisteredUser()) {
+        // للمستخدمين المسجلين، نقوم بالانضمام عبر API
+        try {
+          await api.post(`/sessions/join/${gameCode}`);
+        } catch (err) {
+          // نتجاهل أي خطأ هنا ونحاول الانتقال للجلسة على أي حال
+          console.error('Error joining session via API:', err);
+        }
       }
       
-      // للمستخدمين المسجلين، نقوم بالانضمام عبر API أولاً
-      console.log('Registered user - joining via API');
-      await api.post(`/sessions/join/${gameCode}`);
+      // انتقل مباشرة للجلسة (للمستخدمين المسجلين والضيوف)
       router.push(`/sessions/${gameCode}`);
     } catch (err) {
-      console.error('Error joining session:', err);
-      setError(err.response?.data?.message || 'فشل في الانضمام إلى الجلسة، تأكد من صحة الكود والمحاولة مرة أخرى.');
+      console.error('Error navigating to session:', err);
+      setError('فشل في الانضمام إلى الجلسة، تأكد من صحة الكود والمحاولة مرة أخرى.');
       setIsJoining(false);
     }
   };

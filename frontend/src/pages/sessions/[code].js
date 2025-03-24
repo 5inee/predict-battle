@@ -49,29 +49,51 @@ useEffect(() => {
     
     try {
       setLoading(true);
-      console.log('Fetching session details for code:', code);
       
-      // سواء للمستخدمين المسجلين أو الضيوف، استخدم نفس المسار العام
-      const response = await api.get(`/sessions/${code}/public`);
-      
-      if (response && response.data) {
-        console.log('Session data received:', response.data);
+      // المستخدمين المسجلين
+      if (isRegisteredUser()) {
+        const response = await api.get(`/sessions/${code}`);
         setSession(response.data.session);
         setPredictions(response.data.predictions || []);
         
         // التحقق مما إذا كان المستخدم قد قدم توقعًا
-        if (user && response.data.predictions) {
-          if (isRegisteredUser()) {
-            // للمستخدمين المسجلين
-            if (response.data.predictions.some(p => p.user && p.user._id === user.id)) {
-              setHasSubmitted(true);
-            }
-          } else if (isGuest) {
-            // للضيوف
-            if (response.data.predictions.some(p => p.guestId === user.id)) {
-              setHasSubmitted(true);
-            }
+        if (user && response.data.predictions.some(p => p.user && p.user._id === user.id)) {
+          setHasSubmitted(true);
+        }
+      } 
+      // للضيوف
+      else if (isGuest && user) {
+        try {
+          // محاولة الحصول على تفاصيل الجلسة
+          const response = await api.get(`/sessions/${code}/public`);
+          setSession(response.data.session);
+          
+          // الحصول على التوقعات المخزنة محلياً
+          const savedPredictions = JSON.parse(localStorage.getItem(`predictions_${response.data.session._id}`) || '[]');
+          
+          // دمج التوقعات المحلية مع التوقعات من الخادم
+          const allPredictions = [...(response.data.predictions || []), ...savedPredictions];
+          setPredictions(allPredictions);
+          
+          // التحقق مما إذا كان الضيف قد قدم توقعًا
+          if (savedPredictions.some(p => p.guestId === user.id)) {
+            setHasSubmitted(true);
           }
+        } catch (error) {
+          console.error('Error fetching session details for guest:', error);
+          
+          // إنشاء جلسة وهمية للضيف
+          const dummySession = {
+            _id: `session_${code}`,
+            code: code,
+            question: "جلسة توقعات",
+            maxPlayers: 10,
+            participants: [],
+            status: 'active'
+          };
+          
+          setSession(dummySession);
+          setPredictions([]);
         }
       }
       
@@ -96,7 +118,6 @@ useEffect(() => {
 const handleSubmitPrediction = async (e) => {
   e.preventDefault();
   
-  // التحقق من صحة المدخلات
   if (!prediction || !prediction.trim()) {
     setError('الرجاء إدخال توقعك');
     return;
@@ -109,75 +130,46 @@ const handleSubmitPrediction = async (e) => {
 
   try {
     setSubmitting(true);
-    setError(null); // مسح أي خطأ سابق
-    console.log('Submitting prediction for session:', session._id);
-    
-    let response;
+    setError(null);
     
     if (isRegisteredUser()) {
-      // إرسال التوقع للمستخدمين المسجلين
-      console.log('Submitting as registered user');
-      response = await api.post('/predictions', {
+      // للمستخدمين المسجلين
+      const response = await api.post('/predictions', {
         sessionId: session._id,
         content: prediction.trim()
       });
+      
+      if (response.data.predictions) {
+        setPredictions(response.data.predictions);
+      }
     } else if (isGuest && user) {
-      // إرسال التوقع للضيوف - استخدام المسار العام
-      console.log('Submitting as guest:', user.id, user.username);
-      const guestQueryParams = `?guest=true&guestId=${user.id}&guestName=${encodeURIComponent(user.username)}`;
-      response = await api.post(`/predictions/public${guestQueryParams}`, {
-        sessionId: session._id,
-        content: prediction.trim()
-      });
-    }
-    
-    if (response && response.data && response.data.predictions) {
-      console.log('Prediction submitted successfully:', response.data);
-      setPredictions(response.data.predictions);
-    } else {
-      // في حالة نجاح العملية ولكن بدون بيانات التوقعات
-      console.log('Prediction submitted but no predictions returned');
-      // نضيف توقع المستخدم محلياً مؤقتًا
+      // للضيوف - حل مؤقت باستخدام التخزين المحلي فقط
+      console.log('Guest prediction - storing locally only');
+      
+      // إنشاء توقع محلي
       const localPrediction = {
-        _id: `local_${Date.now()}`,
-        user: isRegisteredUser() ? { _id: user.id, username: user.username } : null,
-        guestId: isGuest ? user.id : null,
-        guestName: isGuest ? user.username : null,
+        _id: `guest_${Date.now()}`,
+        guestId: user.id,
+        guestName: user.username,
         content: prediction.trim(),
         submittedAt: new Date().toISOString()
       };
       
-      setPredictions(prev => [...prev, localPrediction]);
+      // إضافة التوقع محلياً
+      setPredictions(prevPredictions => [...prevPredictions, localPrediction]);
+      
+      // حفظ التوقعات في localStorage
+      const savedPredictions = JSON.parse(localStorage.getItem(`predictions_${session._id}`) || '[]');
+      savedPredictions.push(localPrediction);
+      localStorage.setItem(`predictions_${session._id}`, JSON.stringify(savedPredictions));
     }
     
     setHasSubmitted(true);
-    setPrediction(''); // مسح مربع الإدخال بعد الإرسال الناجح
+    setPrediction('');
     setSubmitting(false);
   } catch (err) {
     console.error('Error submitting prediction:', err);
-    
-    // معالجة مختلف أنواع الخطأ
-    if (err.response) {
-      // الخادم استجاب برمز حالة خارج نطاق 2xx
-      if (err.response.status === 403) {
-        setError('غير مصرّح لك بإرسال توقع في هذه الجلسة');
-      } else if (err.response.status === 404) {
-        setError('الجلسة غير موجودة أو تم حذفها');
-      } else if (err.response.status === 400) {
-        setError(err.response.data.message || 'بيانات غير صحيحة، يرجى التحقق من المدخلات');
-      } else if (err.response.status === 401) {
-        setError('غير مصرح لك بالوصول إلى هذه الميزة، يرجى تسجيل الدخول مرة أخرى');
-      } else {
-        setError(err.response.data.message || 'حدث خطأ في الخادم، يرجى المحاولة مرة أخرى لاحقًا');
-      }
-    } else if (err.request) {
-      // تم إنشاء الطلب ولكن لم يتم استلام استجابة
-      setError('لا يمكن الاتصال بالخادم، يرجى التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى');
-    } else {
-      // حدث خطأ أثناء إعداد الطلب
-      setError('حدث خطأ أثناء إرسال التوقع، يرجى المحاولة مرة أخرى');
-    }
-    
+    setError('حدث خطأ أثناء إرسال التوقع. يرجى المحاولة مرة أخرى.');
     setSubmitting(false);
   }
 };
