@@ -32,14 +32,10 @@ export const AuthProvider = ({ children }) => {
           // استعادة بيانات المستخدم الضيف
           setUser(JSON.parse(storedGuest));
           setIsGuest(true);
-          setLoading(false);
-          setInitialized(true);
-          return;
-        }
-
-        if (storedUser && storedToken) {
+        } else if (storedUser && storedToken) {
           setUser(JSON.parse(storedUser));
           setToken(storedToken);
+          setIsGuest(false);
           api.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
           
           // التحقق من صحة التوكن (اختياري)
