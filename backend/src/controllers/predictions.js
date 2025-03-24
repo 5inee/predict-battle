@@ -1,6 +1,8 @@
-// في ملف backend/src/controllers/predictions.js
-// تعديل دالة submitPrediction لدعم الضيوف
+const Prediction = require('../models/Prediction');
+const Session = require('../models/Session');
+const mongoose = require('mongoose');
 
+// معالج محسّن لتقديم التوقعات
 exports.submitPrediction = async (req, res) => {
   try {
     const { sessionId, content } = req.body;
@@ -201,5 +203,41 @@ exports.submitPrediction = async (req, res) => {
   } catch (error) {
     console.error('Unhandled error in submitPrediction:', error);
     res.status(500).json({ message: 'Server error while processing your prediction' });
+  }
+};
+
+// Get predictions for session
+exports.getSessionPredictions = async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const isGuest = req.query.guest === 'true';
+    const guestId = req.query.guestId;
+    
+    // Check if session exists
+    const session = await Session.findById(sessionId);
+    
+    if (!session) {
+      return res.status(404).json({ message: 'Session not found' });
+    }
+    
+    // Get predictions
+    let predictions;
+    
+    if (!isGuest) {
+      // للمستخدمين المسجلين
+      predictions = await Prediction.find({ session: sessionId })
+        .populate('user', 'username')
+        .sort({ submittedAt: 1 });
+    } else {
+      // للجميع (بما فيهم الضيوف)
+      predictions = await Prediction.find({ session: sessionId })
+        .populate('user', 'username')
+        .sort({ submittedAt: 1 });
+    }
+    
+    res.status(200).json(predictions);
+  } catch (error) {
+    console.error('Error in getSessionPredictions:', error);
+    res.status(500).json({ message: 'Server error' });
   }
 };
