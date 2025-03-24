@@ -1,10 +1,27 @@
+// ملف backend/src/middleware/auth.js
+
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
-// في ملف backend/src/middleware/auth.js
 const authMiddleware = async (req, res, next) => {
   try {
-    // Get token from header
+    // التحقق من وجود معلمات الضيف
+    const isGuest = req.query.guest === 'true';
+    const guestId = req.query.guestId;
+    const guestName = req.query.guestName;
+    
+    // إذا كان طلب ضيف صحيح، السماح له بالمرور
+    if (isGuest && guestId && guestName) {
+      // إضافة معلومات الضيف إلى req للاستخدام في وحدات التحكم
+      req.isGuest = true;
+      req.guestUser = {
+        id: guestId,
+        username: guestName
+      };
+      return next();
+    }
+    
+    // Get token from header - للمستخدمين المسجلين
     const authHeader = req.header('Authorization');
     if (!authHeader) {
       return res.status(401).json({ message: 'No authentication token, authorization denied' });
